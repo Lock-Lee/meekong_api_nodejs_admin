@@ -1,0 +1,264 @@
+name: 🧪 Manual Testing Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Skip quality gate tests'
+        type: boolean
+        default: false
+      build_only:
+        description: 'Build Docker image only (skip deployment)'
+        type: boolean
+        default: false
+
+env:
+  NODE_VERSION: "22"
+  AWS_REGION: "ap-southeast-1"
+  ECR_REPOSITORY: "meekong-api-staging"
+  AWS_ACCOUNT_ID: "520473891648"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  quality-gate:
+    name: 🔍 Quality Gate
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.skip_tests != 'true' }}
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🚀 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: 📦 Install Dependencies
+        run: |
+          npm ci --no-audit --prefer-offline
+          npx prisma generate
+
+      - name: 🔍 Lint Code
+        run: npm run lint
+
+      - name: 🔧 Type Check
+        run: npx tsc --noEmit
+
+      - name: 🏗️ Build
+        run: npm run build
+
+      - name: 🛡️ Security Audit
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+  docker-build:
+    name: 🐳 Build & Push Staging Image
+    runs-on: ubuntu-latest
+    needs: [quality-gate]
+    if: |
+      always() &&
+      (needs.quality-gate.result == 'success' || needs.quality-gate.result == 'skipped')
+
+    outputs:
+      image-tag: ${{ steps.meta.outputs.version }}
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🔐 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/GitHubActions-MeekongAPI
+          role-session-name: github-actions-manual-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 🔑 Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: 🔧 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🏷️ Docker Metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=manual-
+            type=raw,value=latest
+            type=raw,value={{date 'YYYYMMDD-HHmmss'}}
+
+      - name: 🏗️ Build & Push to ECR
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NODE_ENV=production
+
+      - name: 📝 Image Build Summary
+        run: |
+          echo "🐳 **Docker Image Built Successfully**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Repository:** ${{ env.ECR_REPOSITORY }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Registry:** ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tags:** ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+
+  deploy-ec2:
+    name: 🚀 Deploy to EC2
+    runs-on: ubuntu-latest
+    needs: [docker-build]
+    if: |
+      always() &&
+      needs.docker-build.result == 'success' &&
+      github.event.inputs.build_only != 'true'
+    environment:
+      name: CI
+      url: ${{ steps.deploy.outputs.url }}
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🔐 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/GitHubActions-MeekongAPI
+          role-session-name: github-actions-ec2-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 🚀 Deploy to EC2 Instance
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT || '22' }}
+          script: |
+            # Stop existing containers if running
+            if [ "$(docker ps -q -f name=meekong-api)" ]; then
+              echo "Stopping existing API container..."
+              docker stop meekong-api
+              docker rm meekong-api
+            fi
+
+            if [ "$(docker ps -q -f name=meekong-redis)" ]; then
+              echo "Stopping existing Redis container..."
+              docker stop meekong-redis
+              docker rm meekong-redis
+            fi
+
+            # Remove network if exists
+            if [ "$(docker network ls -q -f name=meekong-network)" ]; then
+              echo "Removing existing network..."
+              docker network rm meekong-network
+            fi
+
+            # Create network
+            echo "Creating Docker network..."
+            docker network create meekong-network
+
+            # Login to ECR
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+
+            # Pull latest image
+            echo "Pulling latest image..."
+            docker pull ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest
+
+            # Start Redis container
+            echo "Starting Redis container..."
+            docker run -d \
+              --name meekong-redis \
+              --network meekong-network \
+              --restart unless-stopped \
+              redis:7-alpine
+
+            # Wait for Redis to be ready
+            echo "Waiting for Redis to start..."
+            sleep 5
+
+            # Run API container
+            echo "Starting API container..."
+            docker run -d \
+              --name meekong-api \
+              --network meekong-network \
+              --restart unless-stopped \
+              -p 4000:3000 \
+              -e REDIS_HOST=meekong-redis \
+              -e REDIS_PORT=6379 \
+              --env-file /home/${{ secrets.EC2_USER }}/.env.production \
+              ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest
+
+            # Check container status
+            echo "Container status:"
+            docker ps -f name=meekong-api
+
+            # Wait for health check
+            echo "Waiting for application to start..."
+            sleep 10
+
+            # Basic health check
+            if curl -f http://localhost:4000/health > /dev/null 2>&1; then
+              echo "✅ Application is healthy"
+            else
+              echo "⚠️ Health check failed - checking logs..."
+              docker logs --tail 50 meekong-api
+              exit 1
+            fi
+
+      - name: 📝 Deployment Summary
+        id: deploy
+        if: always()
+        run: |
+          echo "🚀 **EC2 Deployment Completed**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image:** ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest" >> $GITHUB_STEP_SUMMARY
+          echo "- **Docker Tag:** ${{ needs.docker-build.outputs.image-tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ **Status:** Deployment successful" >> $GITHUB_STEP_SUMMARY
+            echo "url=http://${{ secrets.EC2_HOST }}:4000" >> $GITHUB_OUTPUT
+          else
+            echo "❌ **Status:** Deployment failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+# Required GitHub Secrets for this workflow:
+#
+# AWS Configuration:
+# - AWS_ACCOUNT_ID: Already set as environment variable (520473891648)
+# - ECR_REPOSITORY: Already set as environment variable (meekong-api-staging)
+# - AWS_REGION: Already set as environment variable (ap-southeast-1)
+# - AWS IAM Role: arn:aws:iam::520473891648:role/GitHubActions-MeekongAPI (configured in workflow)
+#
+# EC2 Connection Secrets (add these to GitHub repository secrets):
+# - EC2_HOST: IP address or hostname of your EC2 instance
+# - EC2_USER: SSH username (usually 'ubuntu' for Ubuntu instances, 'ec2-user' for Amazon Linux)
+# - EC2_SSH_KEY: Private SSH key content for accessing EC2 instance
+# - EC2_PORT: SSH port (optional, defaults to 22)
+#
+# EC2 Prerequisites:
+# 1. Docker installed and running on EC2 instance
+# 2. AWS CLI installed and configured with proper permissions to pull from ECR
+# 3. Environment file at /home/{EC2_USER}/.env.production with application environment variables
+# 4. Security Group allows inbound traffic on port 4000 (or your app port)
+# 5. EC2 instance has IAM role or credentials to access ECR repository
+#
+# Manual Trigger Options:
+# - skip_tests: Skip quality gate tests (default: false)
+# - build_only: Build Docker image only, skip deployment (default: false)

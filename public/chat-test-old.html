@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat API Test</title>
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .section h3 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        input, textarea, select, button {
+            margin: 5px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            padding: 10px 20px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .success {
+            color: #28a745;
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .error {
+            color: #dc3545;
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .response {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+            font-family: monospace;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .file-input {
+            border: 2px dashed #007bff;
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px;
+            background: #f8f9ff;
+        }
+        .messages {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 10px 0;
+            background: #f9f9f9;
+        }
+        .message {
+            padding: 8px;
+            margin: 5px 0;
+            border-radius: 5px;
+            background: white;
+            border-left: 3px solid #007bff;
+        }
+        .message img {
+            max-width: 200px;
+            border-radius: 5px;
+            margin-top: 5px;
+        }
+        .flex {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .status {
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .online {
+            background: #d4edda;
+            color: #155724;
+        }
+        .offline {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .message.info {
+            border-left-color: #17a2b8;
+        }
+        .message.error {
+            border-left-color: #dc3545;
+        }
+        .message.system {
+            border-left-color: #28a745;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Chat API Test Tool</h1>
+        
+        <!-- Configuration Section -->
+        <div class="section">
+            <h3>⚙️ Configuration</h3>
+            <div class="flex">
+                <input type="text" id="apiBase" placeholder="API Base URL" value="http://localhost:3000">
+                <input type="text" id="jwtToken" placeholder="JWT Token" style="width: 400px;">
+                <button id="saveConfig">Save Config</button>
+            </div>
+            <div class="flex">
+                <input type="text" id="userId" placeholder="User ID" value="user-123">
+                <input type="text" id="shopId" placeholder="Shop ID" value="shop-456">
+                <div id="socketStatus" class="status offline">Socket: Disconnected</div>
+            </div>
+        </div>
+
+        <!-- Create Conversation Section -->
+        <div class="section">
+            <h3>📝 Create Conversation</h3>
+            <div class="flex">
+                <select id="conversationType">
+                    <option value="USER_SHOP">User to Shop</option>
+                    <option value="USER_ADMIN">User to Admin</option>
+                </select>
+                <input type="text" id="conversationTitle" placeholder="Conversation Title" value="Test Conversation">
+                <button id="createConversation">Create Conversation</button>
+            </div>
+            <div id="createConversationResponse" class="response" style="display: none;"></div>
+        </div>
+
+        <!-- Send Message Section -->
+        <div class="section">
+            <h3>💬 Send Text Message</h3>
+            <div class="flex">
+                <input type="text" id="conversationId" placeholder="Conversation ID">
+                <select id="senderType">
+                    <option value="USER">User</option>
+                    <option value="SHOP">Shop</option>
+                    <option value="ADMIN">Admin</option>
+                </select>
+            </div>
+            <textarea id="messageText" placeholder="Message text" rows="3" style="width: 100%; margin: 10px 0;"></textarea>
+            <div class="flex">
+                <input type="text" id="replyToId" placeholder="Reply To Message ID (optional)">
+                <button id="sendMessage">Send Message</button>
+            </div>
+            <div id="sendMessageResponse" class="response" style="display: none;"></div>
+        </div>
+
+        <!-- Upload Image Section -->
+        <div class="section">
+            <h3>📷 Upload & Send Image</h3>
+            <div class="file-input">
+                <input type="file" id="imageFile" accept="image/*">
+                <p>Select an image file (PNG, JPG, WEBP, GIF)</p>
+            </div>
+            <div class="flex">
+                <input type="text" id="imageConversationId" placeholder="Conversation ID">
+                <input type="text" id="imageCaption" placeholder="Image caption (optional)">
+                <button id="uploadImage">Upload Only</button>
+                <button id="sendImageMessage">Send Image Message</button>
+            </div>
+            <div id="imageResponse" class="response" style="display: none;"></div>
+        </div>
+
+        <!-- Get Messages Section -->
+        <div class="section">
+            <h3>📋 Get Messages</h3>
+            <div class="flex">
+                <input type="text" id="getMessagesConvId" placeholder="Conversation ID">
+                <button id="getMessages">Get Messages</button>
+                <button id="getConversations">Get Conversations</button>
+            </div>
+            <div id="getMessagesResponse" class="response" style="display: none;"></div>
+        </div>
+
+        <!-- Real-time Messages Section -->
+        <div class="section">
+            <h3>🔴 Real-time Messages (Socket.IO)</h3>
+            <div class="flex">
+                <input type="text" id="joinRoomId" placeholder="Conversation ID to join">
+                <button id="joinRoom">Join Room</button>
+                <button id="leaveRoom">Leave Room</button>
+                <button id="connectSocket">Connect S่ocket</button>
+                <button id="disconnectSocket">Disconnect</button>
+            </div>
+            <div class="flex">
+                <button id="getAllRooms">Show All Active Rooms</button>
+                <button id="sendTyping">Send Typing</button>
+            </div>
+            
+            <!-- Room Statistics -->
+            <div id="roomStats" style="background: #e3f2fd; padding: 10px; margin: 10px 0; border-radius: 5px; display: none;">
+                <strong>Room Statistics:</strong>
+                <div id="roomStatsContent"></div>
+            </div>
+            
+            <div class="messages" id="realTimeMessages">
+                <div class="message">Socket messages will appear here...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let socket = null;
+        let config = {
+            apiBase: 'http://localhost:3000',
+            jwtToken: '',
+            userId: 'user-123',
+            shopId: 'shop-456'
+        };
+
+        // Utility functions
+        function showResponse(elementId, data, isError = false) {
+            const element = document.getElementById(elementId);
+            element.style.display = 'block';
+            element.className = `response ${isError ? 'error' : 'success'}`;
+            element.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+        }
+
+        function makeRequest(endpoint, options = {}) {
+            const url = `${config.apiBase}${endpoint}`;
+            const defaultOptions = {
+                headers: {
+                    'Authorization': `Bearer ${config.jwtToken}`,
+                    ...options.headers
+                }
+            };
+
+            if (options.body && !(options.body instanceof FormData)) {
+                defaultOptions.headers['Content-Type'] = 'application/json';
+            }
+
+            return fetch(url, { ...defaultOptions, ...options });
+        }
+
+        // Save configuration
+        document.getElementById('saveConfig').addEventListener('click', () => {
+            config.apiBase = document.getElementById('apiBase').value;
+            config.jwtToken = document.getElementById('jwtToken').value;
+            config.userId = document.getElementById('userId').value;
+            config.shopId = document.getElementById('shopId').value;
+            
+            if (!config.jwtToken) {
+                alert('Please enter JWT Token');
+                return;
+            }
+            
+            alert('Configuration saved!');
+        });
+
+        // Create Conversation
+        document.getElementById('createConversation').addEventListener('click', async () => {
+            const type = document.getElementById('conversationType').value;
+            const title = document.getElementById('conversationTitle').value;
+            
+            const data = {
+                type,
+                userId: config.userId,
+                shopId: config.shopId,
+                title
+            };
+
+            try {
+                const response = await makeRequest('/api/chat/conversations', {
+                    method: 'POST',
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                showResponse('createConversationResponse', result, !response.ok);
+                
+                if (response.ok && result.id) {
+                    document.getElementById('conversationId').value = result.id;
+                    document.getElementById('imageConversationId').value = result.id;
+                    document.getElementById('getMessagesConvId').value = result.id;
+                    document.getElementById('joinRoomId').value = result.id;
+                }
+            } catch (error) {
+                showResponse('createConversationResponse', `Error: ${error.message}`, true);
+            }
+        });
+
+        // Send Message
+        document.getElementById('sendMessage').addEventListener('click', async () => {
+            const conversationId = document.getElementById('conversationId').value;
+            const messageText = document.getElementById('messageText').value;
+            const senderType = document.getElementById('senderType').value;
+            const replyToId = document.getElementById('replyToId').value;
+            
+            if (!conversationId || !messageText) {
+                alert('Please fill in conversation ID and message text');
+                return;
+            }
+
+            const data = {
+                senderId: senderType === 'USER' ? config.userId : config.shopId,
+                senderType,
+                message: messageText,
+                ...(replyToId && { replyToId })
+            };
+
+            try {
+                const response = await makeRequest(`/api/chat/conversations/${conversationId}/messages`, {
+                    method: 'POST',
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                showResponse('sendMessageResponse', result, !response.ok);
+            } catch (error) {
+                showResponse('sendMessageResponse', `Error: ${error.message}`, true);
+            }
+        });
+
+        // Upload Image Only
+        document.getElementById('uploadImage').addEventListener('click', async () => {
+            const fileInput = document.getElementById('imageFile');
+            
+            if (!fileInput.files[0]) {
+                alert('Please select an image file');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('image', fileInput.files[0]);
+
+            try {
+                const response = await makeRequest('/api/chat/upload-image', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                showResponse('imageResponse', result, !response.ok);
+            } catch (error) {
+                showResponse('imageResponse', `Error: ${error.message}`, true);
+            }
+        });
+
+        // Send Image Message
+        document.getElementById('sendImageMessage').addEventListener('click', async () => {
+            const fileInput = document.getElementById('imageFile');
+            const conversationId = document.getElementById('imageConversationId').value;
+            const caption = document.getElementById('imageCaption').value;
+            
+            if (!fileInput.files[0] || !conversationId) {
+                alert('Please select an image file and enter conversation ID');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('image', fileInput.files[0]);
+            formData.append('senderId', config.userId);
+            formData.append('senderType', 'USER');
+            if (caption) formData.append('message', caption);
+
+            try {
+                const response = await makeRequest(`/api/chat/conversations/${conversationId}/images`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                showResponse('imageResponse', result, !response.ok);
+            } catch (error) {
+                showResponse('imageResponse', `Error: ${error.message}`, true);
+            }
+        });
+
+        // Get Messages
+        document.getElementById('getMessages').addEventListener('click', async () => {
+            const conversationId = document.getElementById('getMessagesConvId').value;
+            
+            if (!conversationId) {
+                alert('Please enter conversation ID');
+                return;
+            }
+
+            try {
+                const response = await makeRequest(`/api/chat/conversations/${conversationId}/messages`);
+                const result = await response.json();
+                showResponse('getMessagesResponse', result, !response.ok);
+            } catch (error) {
+                showResponse('getMessagesResponse', `Error: ${error.message}`, true);
+            }
+        });
+
+        // Get Conversations
+        document.getElementById('getConversations').addEventListener('click', async () => {
+            try {
+                const response = await makeRequest('/api/chat/conversations');
+                const result = await response.json();
+                showResponse('getMessagesResponse', result, !response.ok);
+            } catch (error) {
+                showResponse('getMessagesResponse', `Error: ${error.message}`, true);
+            }
+        });
+
+        // Socket.IO functions
+        document.getElementById('connectSocket').addEventListener('click', () => {
+            if (!config.jwtToken) {
+                alert('Please set JWT token first');
+                return;
+            }
+
+            if (socket) {
+                socket.disconnect();
+            }
+
+            socket = io(config.apiBase, {
+                auth: {
+                    token: config.jwtToken
+                }
+            });
+
+            socket.on('connect', () => {
+                document.getElementById('socketStatus').textContent = 'Socket: Connected';
+                document.getElementById('socketStatus').className = 'status online';
+                addRealtimeMessage('✅ Connected to Socket.IO', 'system');
+            });
+
+            socket.on('disconnect', () => {
+                document.getElementById('socketStatus').textContent = 'Socket: Disconnected';
+                document.getElementById('socketStatus').className = 'status offline';
+                addRealtimeMessage('❌ Disconnected from Socket.IO', 'system');
+            });
+
+            socket.on('new_message', (message) => {
+                addRealtimeMessage(`New Message: ${JSON.stringify(message, null, 2)}`, 'message');
+            });
+
+            socket.on('user_typing', (data) => {
+                addRealtimeMessage(`User ${data.userId} is typing in conversation ${data.conversationId}`, 'typing');
+            });
+
+            socket.on('user_joined_room', (data) => {
+                const reason = data.reason ? ` (${data.reason})` : '';
+                addRealtimeMessage(`👋 User ${data.userId} joined room ${data.conversationId}${reason}`, 'system');
+                if (data.roomStats) {
+                    updateRoomStats(data.roomStats);
+                }
+            });
+
+            socket.on('user_left_room', (data) => {
+                const reason = data.reason ? ` (${data.reason})` : '';
+                addRealtimeMessage(`👋 User ${data.userId} left room ${data.conversationId}${reason}`, 'system');
+                if (data.roomStats) {
+                    updateRoomStats(data.roomStats);
+                }
+            });
+
+            socket.on('room_stats_updated', (data) => {
+                updateRoomStats(data.roomStats);
+            });
+
+            socket.on('connect_error', (error) => {
+                addRealtimeMessage(`Connection Error: ${error.message}`, 'error');
+            });
+        });
+
+        document.getElementById('disconnectSocket').addEventListener('click', () => {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+            }
+        });
+
+        document.getElementById('joinRoom').addEventListener('click', () => {
+            const roomId = document.getElementById('joinRoomId').value;
+            
+            if (!socket) {
+                alert('Please connect socket first');
+                return;
+            }
+            
+            if (!roomId) {
+                alert('Please enter conversation ID');
+                return;
+            }
+
+            // ใช้ callback เพื่อรับการยืนยันจาก server
+            socket.emit('join_room', roomId, (response) => {
+                if (response && response.success) {
+                    addRealtimeMessage(`✅ ${response.message}`, 'system');
+                } else {
+                    addRealtimeMessage(`❌ Failed to join room: ${roomId}`, 'error');
+                }
+            });
+            
+            addRealtimeMessage(`🔄 Attempting to join room: ${roomId}`, 'system');
+        });
+
+        // Leave Room functionality
+        document.getElementById('leaveRoom').addEventListener('click', () => {
+            const roomId = document.getElementById('joinRoomId').value;
+            
+            if (!socket) {
+                alert('Please connect socket first');
+                return;
+            }
+            
+            if (!roomId) {
+                alert('Please enter conversation ID');
+                return;
+            }
+
+            socket.emit('leave_room', roomId, (response) => {
+                if (response && response.success) {
+                    addRealtimeMessage(`✅ ${response.message}`, 'system');
+                    if (response.roomStats) {
+                        updateRoomStats(response.roomStats);
+                    }
+                } else {
+                    addRealtimeMessage(`❌ Failed to leave room: ${roomId}`, 'error');
+                }
+            });
+            
+            addRealtimeMessage(`🔄 Attempting to leave room: ${roomId}`, 'system');
+        });
+
+        // Send Typing
+        document.getElementById('sendTyping').addEventListener('click', () => {
+            const roomId = document.getElementById('joinRoomId').value;
+            
+            if (!socket) {
+                alert('Please connect socket first');
+                return;
+            }
+            
+            if (!roomId) {
+                alert('Please enter conversation ID');
+                return;
+            }
+
+            socket.emit('user_typing', roomId);
+            addRealtimeMessage(`⌨️ Sent typing event to room: ${roomId}`, 'system');
+        });
+
+        // Get All Active Rooms (using API endpoint)
+        document.getElementById('getAllRooms').addEventListener('click', async () => {
+            try {
+                const response = await makeRequest('/api/online/rooms');
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    const rooms = result.data;
+                    if (rooms.length > 0) {
+                        addRealtimeMessage(`📊 Active Rooms (${rooms.length}):`, 'info');
+                        rooms.forEach(room => {
+                            addRealtimeMessage(`  - Room: ${room.conversationId} (${room.memberCount} members: ${room.members.join(', ')})`, 'info');
+                        });
+                    } else {
+                        addRealtimeMessage(`📊 No active rooms found`, 'info');
+                    }
+                } else {
+                    addRealtimeMessage(`❌ Failed to get room stats: ${result.message || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                addRealtimeMessage(`❌ Error getting room stats: ${error.message}`, 'error');
+            }
+        });
+
+        function updateRoomStats(roomStats) {
+            const roomStatsDiv = document.getElementById('roomStats');
+            const roomStatsContent = document.getElementById('roomStatsContent');
+            
+            if (roomStats && roomStats.memberCount > 0) {
+                roomStatsDiv.style.display = 'block';
+                roomStatsContent.innerHTML = `
+                    <div><strong>Room:</strong> ${roomStats.conversationId}</div>
+                    <div><strong>Members:</strong> ${roomStats.memberCount} person(s)</div>
+                    <div><strong>User IDs:</strong> ${roomStats.members.join(', ')}</div>
+                `;
+                addRealtimeMessage(`📊 Room stats: ${roomStats.memberCount} members in room`, 'info');
+            } else {
+                roomStatsDiv.style.display = 'none';
+                addRealtimeMessage(`📊 Room is empty`, 'info');
+            }
+        }
+
+        function addRealtimeMessage(text, type) {
+            const messagesDiv = document.getElementById('realTimeMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            
+            const timestamp = new Date().toLocaleTimeString();
+            messageDiv.innerHTML = `<strong>[${timestamp}]</strong> ${text}`;
+            
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            // Auto-fill with your real credentials
+            document.getElementById('apiBase').value = config.apiBase;
+            document.getElementById('jwtToken').value = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIwMTk4YTNlYi01N2NiLTcwZjktYWIyNC1iOTIxYzI1Y2I1OTAiLCJpYXQiOjE3NTk0MjE5NDMsImV4cCI6MTc1OTQyOTE0M30._EoqOVN8cov0JYPxgBUwmRLI3hTFuGgZCsyVAIJKkHU';
+            document.getElementById('userId').value = '0198a3eb-57cb-70f9-ab24-b921c25cb590';
+            document.getElementById('shopId').value = 'ab097c2e-b694-45c6-8b81-752fd2f18f03';
+            document.getElementById('joinRoomId').value = '2ce66259-dedc-468b-b96f-43bb3d55a997';
+            
+            // Auto-save config
+            config.jwtToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIwMTk4YTNlYi01N2NiLTcwZjktYWIyNC1iOTIxYzI1Y2I1OTAiLCJpYXQiOjE3NTk0MjE5NDMsImV4cCI6MTc1OTQyOTE0M30._EoqOVN8cov0JYPxgBUwmRLI3hTFuGgZCsyVAIJKkHU';
+            config.userId = '0198a3eb-57cb-70f9-ab24-b921c25cb590';
+            config.shopId = 'ab097c2e-b694-45c6-8b81-752fd2f18f03';
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+import { z } from "zod";
+
+export const getCategoryByIdParamsSchema = z.object({
+    id: z.string().uuid("Invalid category ID format"),
+});
+
+export const createCategoryBodySchema = z.object({
+    nameTh: z.string().min(1, "Thai name is required"),
+    nameEn: z.string().min(1, "English name is required"),
+    imageUrl: z.string().url("Invalid image URL").optional(),
+    parentId: z.string().uuid("Invalid parent ID format").optional(),
+    level: z.number().int().min(1).max(4, "Category level must be between 1 and 4"),
+});
+
+export default {
+    getCategoryByIdParams: getCategoryByIdParamsSchema,
+    createCategory: createCategoryBodySchema,
+};

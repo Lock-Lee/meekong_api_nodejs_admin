@@ -1,0 +1,25 @@
+# Terraform Variables Example
+# Copy this file to terraform.tfvars and customize the values
+
+# Project Configuration
+project_name = "meekong-api"
+environment  = "prod"
+
+# AWS Configuration
+aws_region = "ap-southeast-1"
+
+# EC2 Configuration
+instance_type = "t2.micro"  # Use t2.micro for free tier, t3.small for better performance
+volume_size   = 20          # GB
+
+# SSH Key Configuration
+public_key_path = "~/.ssh/id_rsa.pub"  # Path to your public SSH key
+
+# Security Configuration
+allowed_cidr_blocks = ["0.0.0.0/0"]  # Restrict this to your IP for better security
+
+# Monitoring
+enable_monitoring = true
+
+# Backup Configuration
+backup_retention_days = 7

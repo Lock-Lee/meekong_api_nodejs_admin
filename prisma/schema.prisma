@@ -1,0 +1,2147 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String       @id @default(uuid())
+  email     String       @unique
+  phone     String?      @unique
+  profileId String?      @unique // FK ไปที่ UserProfile
+  profile   UserProfile?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  financeProfileId String?         @unique
+  financeProfile   FinanceProfile? // FK ไปที่ FinanceProfile
+
+  addresses            UserAddress[]
+  roles                UserRole[]
+  authentications      UserAuth[]
+  refreshSessions      RefreshSession[]
+  userSessions         UserSession[]
+  userDevices          UserDevice[]
+  itemsSold            Item[]
+  bidsPlaced           Bid[]
+  ordersPlaced         Order[]
+  orderItemsSold       OrderItem[]
+  rfqRequestsCreated   RFQ[]             @relation("RFQRequester") // RFQ ที่ผู้ใช้สร้าง
+  auctionsCreated      Auction[]
+  auctionsBiddedAsHigh Auction[]         @relation("HighestBidder")
+  auctionsWon          Auction[]         @relation("AuctionWinner")
+  createdCategories    Category[]        @relation("categoryCreatedBy")
+  updatedCategories    Category[]        @relation("categoryUpdatedBy")
+  createdBrands        Brand[]           @relation("brandCreatedBy")
+  updatedBrands        Brand[]           @relation("brandUpdatedBy")
+  createdTags          Tag[]             @relation("TagCreatedBy")
+  createdInventoryLogs InventoryLog[]    @relation("InventoryLogCreatedBy")
+  createdImages        Image[]           @relation("ImageCreatedBy")
+  updatedImages        Image[]           @relation("ImageUpdatedBy")
+  satisfyAsBuyer       Satisfy[]         @relation("SatisfyBuyer")
+  satisfyAsSeller      Satisfy[]         @relation("SatisfySeller")
+  offersSent           Offer[]           @relation("OfferSender")
+  report               BuyerReportItem[]
+
+  AuctionParticipant AuctionParticipant[]
+
+  UserPermission UserPermission[]
+
+  Wishlist Wishlist[]
+
+  Shop Shop[]
+
+  CartItem CartItem[]
+
+  ShopReview ShopReview[]
+
+  shippingPayments ShippingPayment[]
+
+  // RFQ System relations
+  rfqQuotations    RFQQuotation[] @relation("RFQQuotationSeller")
+  rfqOrdersBuying  RFQOrder[]     @relation("RFQOrderBuyer")
+  rfqOrdersSelling RFQOrder[]     @relation("RFQOrderSeller")
+
+  // Return System relations
+  returnRequests ReturnRequest[] @relation("ReturnRequester")
+
+  // Chat System relations
+  chatConversations      ChatConversation[] // แชทที่เป็น user ปกติ
+  adminChatConversations ChatConversation[] @relation("ChatConversationAdmin") // แชทที่เป็น admin
+
+  // Privacy Policy relations
+  privacyAcceptances UserPrivacyAcceptance[] // การยอมรับนโยบายความเป็นส่วนตัว
+
+  // Notification System relations
+  createdNotifications Notification[]     @relation("NotificationCreatedBy") // การแจ้งเตือนที่สร้าง
+  userNotifications    UserNotification[] // การแจ้งเตือนส่วนบุคคล
+}
+
+// UserAddress model to store multiple addresses for users
+model UserAddress {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  label    String // เช่น "บ้าน", "ออฟฟิศ", "ที่อยู่พ่อแม่"
+  fullName String // ผู้รับ เช่น "นาย ก"
+  phone    String // เบอร์ผู้รับ
+
+  address     String // ที่อยู่แบบเต็ม
+  subDistrict String @default("N/A")
+  district    String
+  province    String
+  postalCode  String
+  country     String @default("TH")
+  latitude    Float  @default(0)
+  longitude   Float  @default(0)
+
+  isDefault Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Shipping relations
+  senderShipments   Shipment[] @relation("SenderShipments")
+  receiverShipments Shipment[] @relation("ReceiverShipments")
+
+  @@index([userId])
+}
+
+// UserProfile model to store additional user information
+model UserProfile {
+  id        String    @id @default(uuid())
+  userId    String    @unique
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstName String
+  lastName  String
+  gender    Gender?
+  birthDate DateTime?
+
+  avatarUrl String? // รูปโปรไฟล์
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// UserDevice model to track devices used by users
+model UserDevice {
+  id            String @id @default(uuid())
+  userId        String
+  deviceInfoId  String
+  firebaseToken String
+
+  user       User       @relation(fields: [userId], references: [id])
+  deviceInfo DeviceInfo @relation(fields: [deviceInfoId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, deviceInfoId]) // ป้องกันซ้ำ
+}
+
+// UserAuth model to handle user authentication
+
+// User authentication model for handling different auth providers
+model UserAuth {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  provider     AuthProvider // enum: FACEBOOK, GOOGLE, LINE, PASSWORD, PHONE
+  providerId   String // เช่น Facebook ID, Line UID, เบอร์
+  passwordHash String? // สำหรับ PASSWORD provider
+  accessToken  String? // optional
+  createdAt    DateTime     @default(now())
+
+  @@index([provider, providerId])
+}
+
+// Password reset model for handling password reset requests
+model PasswordReset {
+  id        String   @id @default(uuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([token])
+}
+
+// Phone OTP model for handling phone number verification via OTP
+model PhoneOtp {
+  id        String   @id @default(uuid())
+  phone     String
+  otp       String
+  isUsed    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([phone, otp])
+}
+
+// RefreshSession model for managing user sessions, especially for mobile apps
+model RefreshSession {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  token        String      @unique
+  deviceInfoId String?
+  deviceInfo   DeviceInfo? @relation(fields: [deviceInfoId], references: [id])
+
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  userSessions UserSession[]
+
+  @@index([token])
+  @@index([userId])
+  @@index([deviceInfoId])
+}
+
+// UserSession model for tracking user sessions, including device info and activity
+model UserSession {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  refreshId String?
+  refresh   RefreshSession? @relation(fields: [refreshId], references: [id])
+
+  deviceInfoId String?
+  deviceInfo   DeviceInfo? @relation(fields: [deviceInfoId], references: [id])
+
+  startedAt  DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
+  endedAt    DateTime?
+  duration   Int?
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([isActive])
+  @@index([lastSeenAt])
+}
+
+// DeviceInfo model to store information about user devices
+model DeviceInfo {
+  id         String  @id @default(uuid())
+  deviceId   String? // สำหรับ App
+  deviceName String? // เช่น iPhone 14, Chrome on Mac
+  platform   String? // iOS, Android, Web
+  osVersion  String? // เช่น iOS 17.4, Windows 10
+  appVersion String? // เฉพาะ Mobile
+  userAgent  String? // สำหรับ Browser
+  ipAddress  String? // จาก request header
+  location   String? // ถ้ามี GeoIP
+
+  createdAt       DateTime         @default(now())
+  refreshSessions RefreshSession[]
+  userSessions    UserSession[]
+  userDevices     UserDevice[]
+}
+
+// Permission and Role Management Section Updated
+
+// UserRole model to manage user roles Updated
+model UserPermission {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  allow Boolean // true = ให้สิทธิ์, false = ถอนสิทธิ์ (ใช้ override ได้ทั้งให้และบล็อก)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, permissionId])
+}
+
+// Permission model Updated
+model Permission {
+  id     String           @id @default(uuid())
+  module PermissionModule
+  action PermissionAction
+
+  roles RolePermission[] // many-to-many กับ Role
+
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  UserPermission UserPermission[]
+
+  @@unique([module, action]) // ไม่ให้ซ้ำ
+}
+
+// Role Permission model to manage permissions for roles Updated
+model RolePermission {
+  id           String     @id @default(uuid())
+  role         UserRole
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([role, permissionId])
+}
+
+// ----
+
+// Product and Order Section
+
+// Category model for product categorization
+model Category {
+  id       String   @id @default(uuid())
+  nameTh   String
+  nameEn   String
+  level    Int
+  imageUrl String?
+  fullPath String[] @default([]) // เช่น "เสื้อผ้า>ผู้หญิง>เสื้อ>ชั้นใน" [1,2,3,4]
+  isLeaf   Boolean  @default(false) // กรณีเป็น level 4 แล้วใช้ เป็น True จะได้รู้ว่าเป็น path สุดท้าย
+  status   Status   @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String?
+  updatedById String?
+  createdBy   User?   @relation("categoryCreatedBy", fields: [createdById], references: [id])
+  updatedBy   User?   @relation("categoryUpdatedBy", fields: [updatedById], references: [id])
+
+  parentId String?
+  parent   Category?  @relation("CategoryParent", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryParent")
+
+  sizeUnits        SizeUnit[] @relation("Level1CategorySizeUnits")
+  sizeUnitCategory SizeUnit[] @relation("SizeUnitCategory")
+
+  items       Item[]
+  rfqRequests RFQ[]
+
+  @@index([parentId])
+  @@index([level])
+}
+
+// SizeUnit model for managing size units used in items and RFQs
+model SizeUnit {
+  id               String            @id @default(uuid())
+  name             String // เช่น 'US Size', 'EU Size', 'CM', 'Chest'
+  unitSymbol       String? // เช่น 'cm', 'inch'
+  categoryId       String?
+  type             SizeUnitType
+  itemvariantSizes ItemVariantSize[]
+  rfqSizes         RFQSize[]
+  categories       Category[]        @relation("Level1CategorySizeUnits")
+  status           Status            @default(ACTIVE)
+  category         Category?         @relation("SizeUnitCategory", fields: [categoryId], references: [id])
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+}
+
+// Brand model for product brands
+model Brand {
+  id          String   @id @default(uuid())
+  nameTh      String
+  nameEn      String
+  imageUrl    String?
+  status      Status   @default(ACTIVE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+  items       Item[]
+  rfqRequests RFQ[]
+
+  createdBy User? @relation("brandCreatedBy", fields: [createdById], references: [id])
+  updatedBy User? @relation("brandUpdatedBy", fields: [updatedById], references: [id])
+
+  @@index([status])
+  @@index([nameTh])
+  @@index([nameEn])
+}
+
+// #HashTag or Tagging system for items, brands, categories, etc.
+
+// Main Tag model
+model Tag {
+  id          String  @id @default(uuid())
+  name        String  @unique // เช่น "เสื้อยืดทรงสวย"
+  status      Status  @default(ACTIVE)
+  createdById String?
+  createdBy   User?   @relation("TagCreatedBy", fields: [createdById], references: [id])
+
+  tagLinks  TagLink[]
+  tagUsages TagUsage[]
+}
+
+// Link between Tag and target entities (items, brands, etc.)
+model TagLink {
+  id    String @id @default(uuid())
+  tagId String
+  tag   Tag    @relation(fields: [tagId], references: [id])
+
+  targetType TagTargetType // เช่น 'PRODUCT', 'POST' (รองรับ multi-entity)
+  targetId   String // UUID ของสิ่งที่ถูก tag
+
+  createdAt DateTime @default(now())
+
+  @@index([tagId])
+  @@index([targetType, targetId])
+}
+
+// Usage statistics for tags
+model TagUsage {
+  id         String        @id @default(uuid())
+  tagId      String
+  tag        Tag           @relation(fields: [tagId], references: [id])
+  targetType TagTargetType
+  period     String // เช่น daily, weekly, all-time
+  count      Int
+  updatedAt  DateTime
+}
+
+// Enum for target types in TagLink and TagUsage
+enum TagTargetType {
+  ITEM
+  BRAND
+  CATEGORY
+  USER
+  CONTENT
+  CAMPAIGN
+}
+
+// Product Item model Updated
+model Item {
+  id            String          @id @default(uuid())
+  code          String          @unique // รหัสสินค้า (เช่น "MK00001")   
+  nameTh        String
+  nameEn        String
+  descriptionTh String //คำอธิบายเพิ่มเติมจากผู้ขายไทย
+  descriptionEn String //คำอธิบายเพิ่มเติมจากผู้ขายEng
+  imageUrl      String? // URL ของรูปภาพหลัก
+  itemType      ItemType
+  sellType      SellType
+  variantType   ItemVariantType @default(SINGLE) // ประเภท variant: SINGLE หรือ MULTIPLE
+  status        Status          @default(ACTIVE)
+
+  // Shipping and variant settings
+  shippingDuration Int? // ระยะเวลาจัดส่ง (วัน) เช่น 1, 3, 5
+  variantChangeFee Decimal? @default(0.00) @db.Decimal(10, 2) // ค่าธรรมเนียมเปลี่ยน variant
+
+  categoryName String?
+  categoryId   String
+  category     Category @relation(fields: [categoryId], references: [id])
+  categoryPath String[] @default([])
+  brandId      String?
+  brand        Brand?   @relation(fields: [brandId], references: [id])
+
+  itemVariants ItemVariant[] // Variants ของสินค้า เช่น ขนาด, สี
+
+  inventoryLogs InventoryLog[]
+  auction       Auction?
+  orderItems    OrderItem[]
+  satisfy       Satisfy[]
+  report        BuyerReportItem[]
+
+  sellerId  String // FK ไปที่ User (ผู้ขาย)
+  seller    User       @relation(fields: [sellerId], references: [id])
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  Wishlist  Wishlist[]
+  Shop      Shop[]
+  CartItem  CartItem[]
+
+  // Return relation
+  returnItems ReturnItem[]
+
+  // RFQ relations
+  rfqQuotations RFQQuotation[] // ใบเสนอราคาที่เสนอสินค้านี้
+  rfqOrders     RFQOrder[] // คำสั่งซื้อ RFQ ที่เลือกสินค้านี้
+
+  // Image relations
+  images ItemImage[] // รูปภาพสินค้า
+
+  // Note: Tags are linked via TagLink table with targetType='ITEM' and targetId=this.id
+
+  @@index([categoryId, brandId, sellType])
+  @@index([categoryPath])
+  @@index([categoryId])
+  @@index([brandId])
+  @@index([itemType])
+  @@index([sellType])
+  @@index([variantType])
+}
+
+// Junction table สำหรับ Item และ Image
+model ItemImage {
+  id        String    @id @default(uuid())
+  itemId    String
+  item      Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  imageId   String
+  image     Image     @relation(fields: [imageId], references: [id], onDelete: Cascade)
+  imageUrl  String // เก็บ URL ไว้ที่นี่เพื่อ performance (copy จาก Image.imageUrl)
+  mediaType MediaType @default(IMAGE) // ประเภทไฟล์: IMAGE หรือ VIDEO (copy จาก Image.mediaType)
+  order     Int       @default(0) // ลำดับการแสดงรูป
+
+  @@unique([itemId, imageId])
+  @@index([itemId])
+  @@index([itemId, order]) // เพิ่ม composite index สำหรับ sort ตาม order
+  @@index([itemId, mediaType]) // เพิ่ม index สำหรับ filter ตาม mediaType
+}
+
+// Enum for product conditions Updated
+enum ProductCondition {
+  NEW_GOOD // ของใหม่ สภาพดี
+  USED_GOOD // มือสอง สภาพดี
+  USED_FAIR // มือสอง มีร่องรอยเล็กน้อย
+  USED_BAD // มือสอง สภาพแย่
+  DAMAGED // ชำรุด
+}
+
+// Item per SKU Updated
+model ItemVariant {
+  id                   String            @id @default(uuid())
+  itemId               String
+  item                 Item              @relation(fields: [itemId], references: [id])
+  sku                  String?           @unique
+  color                String? // optional เช่น สี, ลาย
+  conditionDescription ProductCondition? // optional สภาพสินค้า
+  defectNotes          String? // optional หมายเหตุเกี่ยวกับตำหนิ
+  includedItems        String? // optional อุปกรณ์เพิ่มเติม/ของแถม เช่น "สายชาร์จ, กล่อง"
+
+  price Decimal @default(0.00) @db.Decimal(10, 2)
+
+  stock         Int
+  sizes         ItemVariantSize[]
+  inventoryLogs InventoryLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orderItems OrderItem[]
+  satisfy    Satisfy[]
+  auctions   Auction[]
+
+  Wishlist Wishlist[]
+
+  CartItem CartItem[]
+
+  // Return relation
+  returnItems ReturnItem[]
+
+  // RFQ relations
+  rfqQuotations RFQQuotation[] // ใบเสนอราคาที่เสนอ variant นี้
+  rfqOrders     RFQOrder[] // คำสั่งซื้อ RFQ ที่เลือก variant นี้
+}
+
+// To track sizes for each variant
+model ItemVariantSize {
+  id        String      @id @default(uuid())
+  variantId String
+  variant   ItemVariant @relation(fields: [variantId], references: [id])
+
+  sizeUnitId String
+  sizeUnit   SizeUnit @relation(fields: [sizeUnitId], references: [id])
+
+  value     String // เช่น "9", "42", "27.0"
+  sortOrder Int?
+}
+
+// ----
+
+// User tracking models
+model Wishlist {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  itemId String
+  item   Item   @relation(fields: [itemId], references: [id])
+
+  variantId String?
+  variant   ItemVariant? @relation(fields: [variantId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, itemId, variantId])
+  @@index([userId])
+}
+
+model CartItem {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  itemId String
+  item   Item   @relation(fields: [itemId], references: [id])
+
+  variantId String
+  variant   ItemVariant @relation(fields: [variantId], references: [id])
+
+  quantity Int @default(1)
+
+  synced    Boolean  @default(false) // สำหรับ backend sync auto cart
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, variantId])
+  @@index([userId])
+}
+
+// Shop model to represent a seller's shop Updated
+
+// Shop main
+model Shop {
+  id          String  @id @default(uuid())
+  name        String
+  description String?
+  slug        String  @unique // สำหรับใช้ใน URL
+  avatarUrl   String?
+  bannerUrl   String?
+
+  sellerId      String
+  seller        User    @relation(fields: [sellerId], references: [id])
+  averageRating Decimal @default(0.00) @db.Decimal(10, 2)
+  totalReviews  Int     @default(0)
+  //  followers     Int       @default(0)
+  views         Int     @default(0)
+  //  isVerified    Boolean   @default(false)
+
+  status Status @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items        Item[]
+  orders       Order[]           @relation("ShopOrders")
+  OrderItem    OrderItem[]
+  ShopReview   ShopReview[]
+  ShopWallet   ShopWallet[]
+  buyerReports BuyerReportItem[]
+
+  // Chat System relations
+  chatConversations ChatConversation[] // แชทของร้านค้า
+  ShopWithdrawal    ShopWithdrawal[]
+
+  @@index([sellerId])
+}
+
+model ShopReview {
+  id     String @id @default(uuid())
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id])
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  rating    Int // 1–5
+  comment   String?
+  images    String[] // รูปภาพรีวิว (URLs)
+  status    reviewStatus @default(APPROVED)
+  createdAt DateTime     @default(now())
+
+  @@index([shopId])
+  @@index([userId])
+}
+
+model ShopWallet {
+  id     String @id @default(uuid())
+  shopId String @unique
+  shop   Shop   @relation(fields: [shopId], references: [id])
+
+  balance Decimal @default(0.00) @db.Decimal(10, 2)
+  pending Decimal @default(0.00)
+  hold    Decimal @default(0.00)
+
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  withdrawals        ShopWithdrawal[] // คำขอถอนเงินของ shop นี้
+  walletTransactions WalletTransaction[] // รายการเดินบัญชีเงิน
+}
+
+// Shop Withdrawal System (ใช้ Omise Transfer - shop ถอนได้เลยไม่ต้อง admin อนุมัติ)
+model ShopWithdrawal {
+  id       String     @id @default(uuid())
+  shopId   String
+  shop     Shop       @relation(fields: [shopId], references: [id])
+  walletId String
+  wallet   ShopWallet @relation(fields: [walletId], references: [id])
+
+  // Withdrawal details
+  amount    Decimal @db.Decimal(10, 2) // จำนวนเงินที่ขอถอน
+  fee       Decimal @default(0.00) @db.Decimal(10, 2) // ค่าธรรมเนียมถอน
+  netAmount Decimal @db.Decimal(10, 2) // จำนวนเงินสุทธิที่ได้รับ (amount - fee)
+
+  // Omise Transfer details
+  omiseTransferId String? @unique // Omise Transfer ID
+
+  // Bank account details (from Recipient)
+  recipientId     String? // Omise Recipient ID
+  bankName        String // ชื่อธนาคาร
+  bankAccountNo   String // หมายเลขบัญชี
+  bankAccountName String // ชื่อเจ้าของบัญชี
+
+  // Request details
+  requestNote String? // หมายเหตุจาก shop
+
+  // Status (ไม่ต้อง admin approve)
+  status        WithdrawalStatus @default(PROCESSING)
+  processedAt   DateTime?
+  failureReason String? // เหตุผลที่ fail (ถ้ามี)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shopId])
+  @@index([walletId])
+  @@index([omiseTransferId])
+}
+
+// Wallet Transaction Log (เหมือน InventoryLog สำหรับเงิน)
+model WalletTransaction {
+  id       String     @id @default(uuid())
+  walletId String
+  wallet   ShopWallet @relation(fields: [walletId], references: [id])
+
+  // Transaction details
+  type          WalletTransactionType // CREDIT (เงินเข้า) หรือ DEBIT (เงินออก)
+  amount        Decimal               @db.Decimal(10, 2) // จำนวนเงิน (เป็น positive เสมอ)
+  balanceBefore Decimal               @db.Decimal(10, 2) // ยอดก่อนทำรายการ
+  balanceAfter  Decimal               @db.Decimal(10, 2) // ยอดหลังทำรายการ
+
+  // Reference details
+  referenceType NotificationReferenceType? // ตารางที่เกี่ยวข้อง
+  referenceId   String? // ID ของรายการอ้างอิง
+  description   String // คำอธิบายรายการ เช่น "รายได้จากการขาย Order #123"
+
+  createdAt DateTime @default(now())
+
+  @@index([walletId])
+  @@index([referenceType, referenceId])
+  @@index([createdAt])
+}
+
+// Notification System
+model Notification {
+  id       String               @id @default(uuid())
+  title    String // หัวข้อการแจ้งเตือน
+  message  String // เนื้อหาการแจ้งเตือน
+  type     NotificationType // ประเภทการแจ้งเตือน
+  priority NotificationPriority @default(NORMAL) // ความสำคัญ
+
+  // Target audience
+  targetType  NotificationTarget // ส่งให้ใคร: ALL_USERS, SPECIFIC_USERS, USER_ROLE, SHOP_OWNERS
+  targetRoles String? // JSON array of roles (ถ้า targetType = USER_ROLE)
+
+  // Content and actions
+  imageUrl   String? // รูปภาพประกอบ
+  actionUrl  String? // URL เมื่อกดการแจ้งเตือน
+  actionText String? // ข้อความปุ่ม action
+
+  // Reference to related entity
+  referenceType NotificationReferenceType? // ตารางที่เกี่ยวข้อง
+  referenceId   String? // ID ของ entity ที่เกี่ยวข้อง
+
+  // Settings
+  isActive   Boolean   @default(true) // เปิดใช้งาน
+  scheduleAt DateTime? // กำหนดเวลาส่ง (ถ้าต้องการ)
+  expireAt   DateTime? // วันหมดอายุ
+
+  // Tracking
+  createdById String?
+  createdBy   User?   @relation("NotificationCreatedBy", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  userNotifications UserNotification[] // การแจ้งเตือนส่วนบุคคล
+
+  @@index([type])
+  @@index([targetType])
+  @@index([isActive])
+  @@index([scheduleAt])
+  @@index([createdAt])
+}
+
+model UserNotification {
+  id             String       @id @default(uuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notificationId String
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  // Status
+  status UserNotificationStatus @default(UNREAD) // UNREAD, READ, DISMISSED
+  readAt DateTime?
+
+  // Push notification tracking
+  isPushed    Boolean   @default(false) // ส่ง push notification แล้วหรือยัง
+  pushedAt    DateTime?
+  deviceToken String? // FCM/APNS device token
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, notificationId])
+  @@index([userId])
+  @@index([notificationId])
+  @@index([status])
+  @@index([isPushed])
+  @@index([createdAt])
+}
+
+// commission setting
+model CommissionSetting {
+  id            String    @id @default(uuid())
+  type          SellType  @unique
+  ratePercent   Int // เช่น 5.0 เท่ากับ 5%
+  effectiveFrom DateTime  @default(now())
+  effectiveTo   DateTime? // ถ้าจะกำหนดวันหมดอายุของ rate นี้
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// All Transaction consists of Orders, Satisfy, Auction, RFQ
+
+// Main Auction Table
+model Auction {
+  id        String      @id @default(uuid())
+  itemId    String      @unique // หนึ่ง Auction ต่อหนึ่ง Item
+  item      Item        @relation(fields: [itemId], references: [id])
+  variantId String
+  variant   ItemVariant @relation(fields: [variantId], references: [id])
+
+  startPrice      Decimal  @default(0.00) @db.Decimal(10, 2) // ราคาตั้งต้น
+  currentBid      Decimal? @default(0.00) @db.Decimal(15, 2) // ราคาประมูลปัจจุบัน
+  buyNowPrice     Decimal? @default(0.00) @db.Decimal(10, 2) // ราคาซื้อขาด (ถ้ามี)
+  highestBidderId String? // ผู้ประมูลสูงสุด (FK ไปที่ User)
+  highestBidder   User?    @relation("HighestBidder", fields: [highestBidderId], references: [id])
+  endPrice        Decimal? @default(0.00) @db.Decimal(15, 2) // ราคาสิ้นสุด (ถ้ามีการปิดประมูล)
+  winnerId        String?
+  winner          User?    @relation("AuctionWinner", fields: [winnerId], references: [id])
+
+  // Financial breakdown
+  finalBidAmount Decimal @default(0.00) @db.Decimal(15, 2) // ราคาที่ประมูลได้
+  shippingCost   Decimal @default(0.00) @db.Decimal(10, 2) // ค่าขนส่ง
+  commissionRate Decimal @default(0.00) @db.Decimal(5, 2) // ดึงจาก CommissionSetting.ratePercent
+  commissionFee  Decimal @default(0.00) @db.Decimal(10, 2) // finalBidAmount * commissionRate/100
+  totalAmount    Decimal @default(0.00) @db.Decimal(15, 2) // finalBidAmount + shippingCost
+
+  startAt  DateTime // วัน-เวลาเริ่มประมูล
+  endAt    DateTime // วัน-เวลาสิ้นสุดประมูล
+  isActive Boolean  @default(true)
+
+  // extendDurationAfterLastBid Int? // (เช่น 5 = ขยายอีก 5 นาที ถ้ามี bid เกิด 5 นาทีสุดท้าย)
+
+  bids Bid[] // ประวัติการประมูล (ตาราง Bid เก็บ bid แต่ละครั้ง)
+
+  createdById        String
+  createdBy          User                 @relation(fields: [createdById], references: [id])
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  AuctionParticipant AuctionParticipant[]
+
+  // Shipping relation
+  shipments Shipment[]
+
+  // Return relation
+  returnRequests ReturnRequest[]
+
+  @@index([createdById])
+}
+
+// Bidding to track bids on auctions
+model Bid {
+  id        String  @id @default(uuid())
+  auctionId String
+  auction   Auction @relation(fields: [auctionId], references: [id])
+
+  userId String // ผู้ประมูล
+  user   User   @relation(fields: [userId], references: [id])
+
+  amount Decimal  @default(0.00) @db.Decimal(10, 2) // จำนวนเงินที่ bid
+  bidAt  DateTime @default(now())
+
+  @@index([auctionId])
+  @@index([userId])
+}
+
+//
+enum AuctionParticipantStatus {
+  PENDING // สมัครเข้าร่วม แต่ยังไม่จ่ายมัดจำ
+  PAID // จ่ายมัดจำแล้ว
+  CANCELED // ยกเลิกก่อนจ่าย
+  REFUNDED // คืนเงินหลังจบ
+  FORFEITED // ถูกริบเงินมัดจำ
+}
+
+model AuctionParticipant {
+  id        String  @id @default(uuid())
+  auctionId String
+  auction   Auction @relation(fields: [auctionId], references: [id])
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  status        AuctionParticipantStatus @default(PENDING)
+  depositAmount Decimal                  @default(0.00) @db.Decimal(10, 2)
+  joinedAt      DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+
+  refundedAt    DateTime? // ถ้ามีการคืน
+  forfeitReason String? // ถ้าถูกริบ
+
+  @@unique([auctionId, userId])
+  @@index([userId])
+  @@index([auctionId])
+}
+
+// Main Table for Orders Transactions
+model Order {
+  id      String @id @default(uuid())
+  buyerId String // ผู้สั่งซื้อ
+  buyer   User   @relation(fields: [buyerId], references: [id])
+
+  // Financial breakdown
+  subtotal      Decimal     @default(0.00) @db.Decimal(10, 2) // ยอดสินค้าก่อนค่าธรรมเนียม
+  shippingCost  Decimal     @default(0.00) @db.Decimal(10, 2) // ค่าขนส่ง
+  commissionFee Decimal     @default(0.00) @db.Decimal(10, 2) // ค่าคอมมิชชั่น
+  totalAmount   Decimal     @default(0.00) @db.Decimal(10, 2) // ยอดรวมทั้งออเดอร์
+  status        OrderStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items OrderItem[] // รายการสินค้าที่สั่ง
+  Shop  Shop[]      @relation("ShopOrders")
+
+  // Shipping relation
+  shipments Shipment[]
+
+  // Return relation
+  returnRequests ReturnRequest[]
+
+  @@index([buyerId])
+}
+
+// OrderItem to track individual items in an order
+model OrderItem {
+  id      String @id @default(uuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id])
+
+  itemId    String
+  item      Item        @relation(fields: [itemId], references: [id])
+  variantId String
+  variant   ItemVariant @relation(fields: [variantId], references: [id])
+
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id])
+
+  quantity       Int // จำนวนที่ซื้อ
+  unitPrice      Decimal @default(0.00) @db.Decimal(10, 2) // ราคาต่อหน่วย ณ เวลาซื้อ (เอามาจาก Item.price)
+  subTotal       Decimal @default(0.00) @db.Decimal(10, 2) // = quantity * unitPrice
+  commissionRate Decimal @default(0.00) @db.Decimal(5, 2) // ดึงจาก CommissionSetting.ratePercent
+  commissionFee  Decimal @default(0.00) @db.Decimal(10, 2) // totalAmount * commissionRate/100
+
+  createdAt DateTime @default(now())
+  User      User?    @relation(fields: [userId], references: [id])
+  userId    String?
+
+  @@index([orderId])
+  @@index([itemId])
+  @@index([shopId])
+}
+
+// Main Table for Satisfy Transactions
+model Satisfy {
+  id        String       @id @default(uuid())
+  itemId    String
+  item      Item         @relation(fields: [itemId], references: [id])
+  variantId String?
+  variant   ItemVariant? @relation(fields: [variantId], references: [id])
+
+  buyerId String
+  buyer   User   @relation("SatisfyBuyer", fields: [buyerId], references: [id])
+
+  sellerId String
+  seller   User   @relation("SatisfySeller", fields: [sellerId], references: [id])
+
+  status    OfferStatus @default(OPEN)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  // Financial breakdown
+  agreedPrice    Decimal @default(0.00) @db.Decimal(10, 2) // จำนวนเงินที่ตกลงกัน
+  shippingCost   Decimal @default(0.00) @db.Decimal(10, 2) // ค่าขนส่ง
+  commissionRate Decimal @default(0.00) @db.Decimal(5, 2) // ดึงจาก CommissionSetting.ratePercent
+  commissionFee  Decimal @default(0.00) @db.Decimal(10, 2) // agreedPrice * commissionRate/100
+  totalAmount    Decimal @default(0.00) @db.Decimal(10, 2) // agreedPrice + shippingCost
+
+  expireAt DateTime?
+
+  offers Offer[] @relation("SatisfyOffers")
+
+  // Shipping relation
+  shipments Shipment[]
+
+  // Return relation
+  returnRequests ReturnRequest[]
+
+  @@index([itemId])
+  @@index([buyerId])
+  @@index([sellerId])
+}
+
+// Offer log for each satisfy transactions
+model Offer {
+  id        String  @id @default(uuid())
+  satisfyId String
+  satisfy   Satisfy @relation("SatisfyOffers", fields: [satisfyId], references: [id])
+
+  senderId String
+  sender   User   @relation("OfferSender", fields: [senderId], references: [id])
+
+  amount  Decimal @default(0.00) @db.Decimal(10, 2)
+  message String?
+
+  createdAt DateTime @default(now())
+
+  @@index([satisfyId])
+  @@index([senderId])
+}
+
+// RFQ (Request for Quotation) - เหมือน post ขอใบเสนอราคา
+model RFQ {
+  id          String   @id @default(uuid())
+  nameTh      String
+  nameEn      String
+  imageUrl    String?
+  description String
+  itemType    ItemType
+
+  // Budget range (เป็นแค่คร่าวๆ)
+  minBudget Decimal? @default(0.00) @db.Decimal(10, 2)
+  maxBudget Decimal? @default(0.00) @db.Decimal(10, 2)
+  quantity  Int      @default(1) // จำนวนที่ต้องการ
+
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
+  brandId    String?
+  brand      Brand?    @relation(fields: [brandId], references: [id])
+
+  requesterId String
+  requester   User   @relation("RFQRequester", fields: [requesterId], references: [id])
+
+  status    RFQStatus @default(OPEN)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  expireAt  DateTime?
+
+  // Relations
+  images     RFQImage[] // รูปภาพเพิ่มเติม (นอกจาก imageUrl)
+  sizes      RFQSize[]
+  quotations RFQQuotation[] // ใบเสนอราคาจากผู้ขาย
+  orders     RFQOrder[] // ออเดอร์ที่เกิดจาก RFQ นี้
+}
+
+// Junction table สำหรับ RFQ และ Image
+model RFQImage {
+  id        String    @id @default(uuid())
+  rfqId     String
+  rfq       RFQ       @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  imageId   String
+  image     Image     @relation(fields: [imageId], references: [id], onDelete: Cascade)
+  imageUrl  String // เก็บ URL ไว้ที่นี่เพื่อ performance (copy จาก Image.imageUrl)
+  mediaType MediaType @default(IMAGE) // ประเภทไฟล์: IMAGE หรือ VIDEO (copy จาก Image.mediaType)
+  order     Int       @default(0) // ลำดับการแสดงรูป
+
+  @@unique([rfqId, imageId])
+  @@index([rfqId])
+  @@index([rfqId, order]) // เพิ่ม composite index สำหรับ sort ตาม order
+  @@index([rfqId, mediaType]) // เพิ่ม index สำหรับ filter ตาม mediaType
+}
+
+// ใบเสนอราคาจากผู้ขาย
+model RFQQuotation {
+  id    String @id @default(uuid())
+  rfqId String
+  rfq   RFQ    @relation(fields: [rfqId], references: [id])
+
+  sellerId String
+  seller   User   @relation("RFQQuotationSeller", fields: [sellerId], references: [id])
+
+  // การเสนอราคา
+  itemPrice Decimal @default(0.00) @db.Decimal(10, 2) // ราคาสินค้าต่อหน่วย
+
+  // สินค้าที่เสนอ
+  itemId        String?
+  item          Item?        @relation(fields: [itemId], references: [id])
+  itemVariantId String?
+  itemVariant   ItemVariant? @relation(fields: [itemVariantId], references: [id])
+
+  // รายละเอียดสินค้าที่เสนอ (สำหรับกรณีไม่มีสินค้าในระบบ)
+  productName        String?
+  productDescription String?
+  productImages      String? // JSON array of image URLs
+
+  status    RFQQuotationStatus @default(PENDING)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  expireAt  DateTime? // ใบเสนอราคาหมดอายุเมื่อไหร่
+
+  // Relations
+  orders RFQOrder[] // ออเดอร์ที่เกิดจากใบเสนอราคานี้
+
+  @@index([rfqId])
+  @@index([sellerId])
+}
+
+// RFQ Order - เกิดเมื่อผู้ขอเลือกใบเสนอราคา
+model RFQOrder {
+  id    String @id @default(uuid())
+  rfqId String
+  rfq   RFQ    @relation(fields: [rfqId], references: [id])
+
+  quotationId String
+  quotation   RFQQuotation @relation(fields: [quotationId], references: [id])
+
+  buyerId String
+  buyer   User   @relation("RFQOrderBuyer", fields: [buyerId], references: [id])
+
+  sellerId String
+  seller   User   @relation("RFQOrderSeller", fields: [sellerId], references: [id])
+
+  // Financial breakdown (copy จาก quotation)
+  quantity       Int     @default(1)
+  unitPrice      Decimal @default(0.00) @db.Decimal(10, 2) // ราคาต่อหน่วย
+  subtotal       Decimal @default(0.00) @db.Decimal(10, 2) // quantity * unitPrice
+  shippingCost   Decimal @default(0.00) @db.Decimal(10, 2) // ค่าขนส่ง
+  commissionRate Decimal @default(0.00) @db.Decimal(5, 2) // ค่าคอมมิชชั่น%
+  commissionFee  Decimal @default(0.00) @db.Decimal(10, 2) // subtotal * commissionRate/100
+  totalAmount    Decimal @default(0.00) @db.Decimal(10, 2) // subtotal + shippingCost
+
+  // สินค้าที่สั่งซื้อ
+  itemId        String?
+  item          Item?        @relation(fields: [itemId], references: [id])
+  itemVariantId String?
+  itemVariant   ItemVariant? @relation(fields: [itemVariantId], references: [id])
+
+  // Product details (snapshot สำหรับกรณีไม่มีสินค้าในระบบ)
+  productName        String?
+  productDescription String?
+  productImages      String? // JSON
+
+  // Special conditions agreed upon
+  specialConditions String?
+
+  status    RFQOrderStatus @default(PENDING)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  // Shipping relation
+  shipments Shipment[]
+
+  // Return relation
+  returnRequests ReturnRequest[]
+
+  @@index([rfqId])
+  @@index([quotationId])
+  @@index([buyerId])
+  @@index([sellerId])
+}
+
+// RFQSize to track sizes requested in RFQ
+model RFQSize {
+  id    String @id @default(uuid())
+  rfqId String
+  rfq   RFQ    @relation(fields: [rfqId], references: [id])
+
+  sizeUnitId String
+  sizeUnit   SizeUnit @relation(fields: [sizeUnitId], references: [id])
+  value      String // เช่น “M”, “42”, “28.5”
+}
+
+// ---
+
+// Inventory Log to track inventory changes for items
+model InventoryLog {
+  id        String      @id @default(uuid())
+  itemId    String
+  item      Item        @relation(fields: [itemId], references: [id])
+  variantId String
+  variant   ItemVariant @relation(fields: [variantId], references: [id])
+
+  action   InventoryAction // ADD, REMOVE, ADJUST
+  quantity Int // จำนวนที่เปลี่ยน
+  balance  Int // คงเหลือหลัง action (optional แต่เร็วในการ query)
+  reason   String? // หมายเหตุ เช่น "ขายออก", "เติมสต็อก", "คืนสินค้า"
+
+  createdAt   DateTime @default(now())
+  createdById String?
+  createdBy   User?    @relation("InventoryLogCreatedBy", fields: [createdById], references: [id])
+}
+
+// Financial Transactions and Payment Models
+
+model FinanceProfile {
+  /// รหัส FinanceProfile (ตรงกับ customer ใน Omise)
+  id        String   @id @map("id")
+  createdAt DateTime @map("created_at")
+  updatedAt DateTime @map("updated_at")
+
+  user   User   @relation(fields: [userId], references: [id])
+  userId String @unique
+
+  cards   Card[]   @relation("ProfileCards")
+  sources Source[] @relation("ProfileSources")
+  charges Charge[] @relation("ProfileCharges")
+}
+
+model Card {
+  id               String         @id @map("id")
+  financeProfile   FinanceProfile @relation("ProfileCards", fields: [financeProfileId], references: [id])
+  financeProfileId String         @map("customer")
+  brand            CardBrand // เช่น Visa, Mastercard
+  lastDigits       String         @map("last_digits")
+  expirationMonth  Int            @map("expiration_month")
+  expirationYear   Int            @map("expiration_year")
+  createdAt        DateTime       @map("created_at")
+  updatedAt        DateTime       @map("updated_at")
+
+  charges Charge[] @relation("CardCharges")
+}
+
+model Source {
+  id               String         @id @map("id")
+  financeProfile   FinanceProfile @relation("ProfileSources", fields: [financeProfileId], references: [id])
+  financeProfileId String         @map("customer")
+  type             PaymentType // promptpay, mobile_banking_scb, ฯลฯ
+  flow             String? // app_redirect, offline, ฯลฯ
+  amount           Decimal        @default(0.00) @db.Decimal(10, 2)
+  currency         String
+  scannableCode    String?        @map("scannable_code")
+  authorizeUri     String?        @map("authorize_uri")
+  createdAt        DateTime       @map("created_at")
+  updatedAt        DateTime       @map("updated_at")
+
+  charges Charge[] @relation("SourceCharges")
+}
+
+model Charge {
+  id               String         @id @map("id")
+  financeProfile   FinanceProfile @relation("ProfileCharges", fields: [financeProfileId], references: [id])
+  financeProfileId String         @map("customer")
+
+  paymentType PaymentType
+  card        Card?       @relation("CardCharges", fields: [cardId], references: [id])
+  cardId      String?     @map("card")
+  source      Source?     @relation("SourceCharges", fields: [sourceId], references: [id])
+  sourceId    String?     @map("source")
+  amount      Decimal     @default(0.00) @db.Decimal(10, 2)
+  currency    String
+  status      String
+  captured    Boolean     @default(true) // true = หักเงินจริง, false = hold เงิน
+  authorized  Boolean     @default(false) // true = authorize สำเร็จ
+  reversed    Boolean     @default(false) // true = ยกเลิก authorization แล้ว
+  reversedAt  DateTime? // วันที่ reverse
+  expiredAt   DateTime? // วันหมดอายุ authorization (7 วันจาก createdAt)
+  createdAt   DateTime    @map("created_at")
+  updatedAt   DateTime    @map("updated_at")
+
+  refunds  Refund[]       @relation("ChargeRefunds")
+  webhooks WebhookEvent[] @relation("ChargeWebhooks")
+
+  // Shipping payment relation
+  shippingPayments ShippingPayment[]
+
+  // Return transaction relation
+  refundTransactions RefundTransaction[] @relation("OriginalCharge")
+}
+
+model Refund {
+  id        String   @id @map("id")
+  charge    Charge   @relation("ChargeRefunds", fields: [chargeId], references: [id])
+  chargeId  String   @map("charge")
+  amount    Decimal  @default(0.00) @db.Decimal(10, 2)
+  status    String
+  createdAt DateTime @map("created_at")
+  updatedAt DateTime @map("updated_at")
+
+  // Return transaction relation
+  refundTransactions RefundTransaction[] @relation("RefundTransactionDetails")
+}
+
+model WebhookEvent {
+  eventPk    Int      @id @default(autoincrement())
+  omiseId    String   @map("id") // รหัสเหตุการณ์ (evnt_…)
+  key        String // เช่น charge.complete 
+  payload    Json // เก็บ raw JSON payload
+  receivedAt DateTime @map("received_at")
+
+  charge Charge? @relation("ChargeWebhooks", fields: [omiseId], references: [id])
+}
+
+// Privacy Policy System Models
+model PrivacyPolicy {
+  id        String            @id @default(uuid())
+  titleTh   String // หัวข้อภาษาไทย
+  titleEn   String // หัวข้อภาษาอังกฤษ
+  contentTh String // เนื้อหาภาษาไทย
+  contentEn String // เนื้อหาภาษาอังกฤษ
+  type      PrivacyPolicyType // ประเภทนโยบาย
+  version   String            @default("1.0") // เวอร์ชั่น
+  isActive  Boolean           @default(true) // เปิดใช้งาน
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  userAcceptances UserPrivacyAcceptance[]
+
+  @@index([isActive])
+}
+
+model UserPrivacyAcceptance {
+  id              String        @id @default(uuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  privacyPolicyId String
+  privacyPolicy   PrivacyPolicy @relation(fields: [privacyPolicyId], references: [id])
+
+  isAccepted Boolean   @default(false) // ยอมรับหรือไม่
+  acceptedAt DateTime? // วันที่ยอมรับ
+  ipAddress  String? // IP ที่ยอมรับ
+  userAgent  String? // User Agent ที่ยอมรับ
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, privacyPolicyId])
+  @@index([userId])
+  @@index([privacyPolicyId])
+  @@index([isAccepted])
+}
+
+// Chat System Models
+model ChatConversation {
+  id   String   @id @default(uuid())
+  type ChatType // USER_SHOP, USER_ADMIN, SHOP_ADMIN
+
+  // Participants
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+  shopId String?
+  shop   Shop?   @relation(fields: [shopId], references: [id])
+
+  // เมื่อมี admin เป็นคู่สนทนา ใช้ adminUserId (admin คือ User ที่มี role admin)
+  adminUserId String?
+  adminUser   User?   @relation("ChatConversationAdmin", fields: [adminUserId], references: [id])
+
+  // Metadata
+  title         String? // หัวข้อแชท (optional)
+  status        ChatStatus @default(ACTIVE)
+  lastMessage   String? // ข้อความล่าสุด (เพื่อแสดงใน list)
+  lastMessageAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages ChatMessage[]
+
+  @@index([userId])
+  @@index([shopId])
+  @@index([adminUserId])
+}
+
+model ChatMessage {
+  id             String           @id @default(uuid())
+  conversationId String
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  // ผู้ส่ง (อาจเป็น User หรือ Shop หรือ Admin)
+  senderId   String
+  senderType ChatSenderType // USER, SHOP, ADMIN
+
+  message     String
+  messageType ChatMessageType @default(TEXT) // TEXT, IMAGE, FILE, PRODUCT, ORDER, REPLY
+  attachments String? // JSON data: URLs สำหรับ IMAGE/FILE, itemId สำหรับ PRODUCT, orderId สำหรับ ORDER
+
+  // Reply functionality
+  replyToId String?       @map("reply_to_id") // ID ของข้อความที่ตอบกลับ
+  replyTo   ChatMessage?  @relation("MessageReply", fields: [replyToId], references: [id])
+  replies   ChatMessage[] @relation("MessageReply") // ข้อความที่ตอบกลับข้อความนี้
+
+  // Status
+  isRead Boolean   @default(false)
+  readAt DateTime?
+  //  isDeleted   Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([createdAt])
+  @@index([isRead])
+  @@index([replyToId])
+}
+
+// Image model to store images/videos for items, users, etc.
+model Image {
+  id          String    @id @default(uuid())
+  imageUrl    String // URL ของรูปภาพหรือวิดีโอ
+  altText     String? // ข้อความอธิบายภาพ (สำหรับ SEO และ accessibility)
+  type        ImageType // เช่น "item", "profile", "brand", "category" , "variant"
+  mediaType   MediaType @default(IMAGE) // ประเภทไฟล์: IMAGE หรือ VIDEO
+  isPrimary   Boolean   @default(false) // ใช้สำหรับระบุรูปหลักของ item หรือ profile
+  targetId    String // FK ไปยัง entity เช่น userId หรือ itemId
+  createdAt   DateTime  @default(now())
+  createdById String? // FK ไปยัง User ที่อัพโหลดรูป
+  createdBy   User?     @relation("ImageCreatedBy", fields: [createdById], references: [id])
+
+  updatedAt   DateTime @updatedAt
+  updatedById String? // FK ไปยัง User ที่แก้ไขรูป
+  updatedBy   User?    @relation("ImageUpdatedBy", fields: [updatedById], references: [id])
+
+  // Relations
+  rfqImages  RFQImage[] // รูป RFQ ที่ใช้ภาพนี้
+  itemImages ItemImage[] // รูป Item ที่ใช้ภาพนี้
+}
+
+enum PermissionModule {
+  PRODUCT // Item, Category, Brand, Tag
+  ORDER // Order, OrderItem
+  AUCTION // Auction, Bid, AuctionParticipant
+  SATISFY // Satisfy, Offer
+  RFQ // RFQ, RFQSize
+  USER // User, UserProfile, UserAddress, UserAuth
+  FINANCE // Charge, Refund, Card, Source
+  IMAGE // Image upload, delete
+  INVENTORY // InventoryLog
+  PERMISSION // Role, Permission, AccessControl
+  ANALYTICS // Dashboard or internal stats
+  SYSTEM // System settings, configs
+}
+
+enum PermissionAction {
+  CREATE
+  EDIT
+  DELETE
+  FIND // list or filter
+  FIND_ONE // detail by ID
+  EXPORT // เช่น CSV, Excel
+  IMPORT
+  APPROVE // ใช้กับ flow ที่ต้องอนุมัติ
+}
+
+// Additional Enums for various statuses and types
+enum ImageType {
+  PROFILE
+  ITEM
+  RFQ
+  BRAND
+  CATEGORY
+  VARIANT
+}
+
+enum PaymentType {
+  CREDIT_CARD
+  PROMPTPAY
+  MOBILE_BANKING
+}
+
+enum CardBrand {
+  VISA
+  MASTERCARD
+  JCB
+  AMERICAN_EXPRESS
+  DISCOVER
+}
+
+enum RFQStatus {
+  OPEN // เปิดรับใบเสนอราคา
+  CLOSED // ปิดแล้ว (เลือกใบเสนอราคาแล้ว)
+  EXPIRED // หมดเวลา
+  CANCELLED // ยกเลิก
+}
+
+enum RFQQuotationStatus {
+  PENDING // รอการพิจารณา
+  ACCEPTED // ได้รับเลือก
+  REJECTED // ถูกปฏิเสธ
+  WITHDRAWN // ผู้ขายถอนใบเสนอราคา
+  EXPIRED // หมดอายุ
+}
+
+enum RFQOrderStatus {
+  PENDING // รอชำระเงิน
+  PAID // ชำระเงินแล้ว
+  SHIPPED // จัดส่งแล้ว
+  COMPLETED // เสร็จสิ้น
+  CANCELLED // ยกเลิก
+  DISPUTED // มีข้อพิพาท
+}
+
+enum OfferStatus {
+  OPEN
+  ACCEPTED
+  CANCELED
+  EXPIRED
+  NONE
+  ADJUST
+  REJECT
+  OFFER
+}
+
+enum OrderStatus {
+  PENDING // กำลังรอชำระเงิน
+  PAID // ชำระเงินแล้ว (กรณีซื้อปกติ)
+  SHIPPED // จัดส่งแล้ว
+  COMPLETED // ปิดการขายแล้ว
+  CANCELED // ยกเลิก
+}
+
+enum InventoryAction {
+  ADD
+  REMOVE
+  ADJUST
+}
+
+enum ItemType {
+  NEW
+  USED
+}
+
+enum SellType {
+  NORMAL
+  AUCTION
+  SATISFY
+  RFQ
+}
+
+enum Status {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  DELETED
+  DRAFT
+}
+
+enum reviewStatus {
+  ARCHIVED
+  PENDING
+  APPROVED
+  REJECTED
+  FORBIDDEN
+  BLOCKED
+  EXPIRED
+}
+
+// Enum for authentication providers
+enum AuthProvider {
+  FACEBOOK
+  GOOGLE
+  LINE
+  PASSWORD
+  PHONE
+}
+
+// UserRole model to manage user roles (Buyer, Seller, Admin)
+enum UserRole {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum SizeUnitType {
+  APPAREL
+  SHOE
+  DIMENSION
+  RING
+  VOLUME
+}
+
+// ----
+// Return/Refund System
+// ----
+
+// Return Request - ใช้งานได้กับ Order, Auction, Satisfy, RFQOrder
+model ReturnRequest {
+  id String @id @default(uuid())
+
+  // Transaction Relations (polymorphic - only one should be filled)
+  orderId String?
+  order   Order?  @relation(fields: [orderId], references: [id])
+
+  auctionId String?
+  auction   Auction? @relation(fields: [auctionId], references: [id])
+
+  satisfyId String?
+  satisfy   Satisfy? @relation(fields: [satisfyId], references: [id])
+
+  rfqOrderId String?
+  rfqOrder   RFQOrder? @relation(fields: [rfqOrderId], references: [id])
+
+  // Return Details
+  requesterId String
+  requester   User   @relation("ReturnRequester", fields: [requesterId], references: [id])
+
+  reason      ReturnReason
+  description String?
+  images      String? // JSON array of evidence images
+
+  // Financial
+  requestedAmount Decimal @default(0.00) @db.Decimal(10, 2) // จำนวนที่ขอคืน
+  approvedAmount  Decimal @default(0.00) @db.Decimal(10, 2) // จำนวนที่อนุมัติ
+  shippingCost    Decimal @default(0.00) @db.Decimal(10, 2) // ค่าขนส่งคืน (ถ้ามี)
+
+  status    ReturnStatus @default(PENDING)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  // Relations
+  refunds     RefundTransaction[]
+  returnItems ReturnItem[]
+
+  @@index([orderId])
+  @@index([auctionId])
+  @@index([satisfyId])
+  @@index([rfqOrderId])
+  @@index([requesterId])
+}
+
+// Return Items - รายการสินค้าที่ต้องการคืน
+model ReturnItem {
+  id              String        @id @default(uuid())
+  returnRequestId String
+  returnRequest   ReturnRequest @relation(fields: [returnRequestId], references: [id])
+
+  itemId String?
+  item   Item?   @relation(fields: [itemId], references: [id])
+
+  variantId String?
+  variant   ItemVariant? @relation(fields: [variantId], references: [id])
+
+  quantity     Int
+  unitPrice    Decimal @default(0.00) @db.Decimal(10, 2)
+  returnReason String? // เหตุผลเฉพาะของ item นี้
+  condition    String? // สภาพของสินค้าที่คืน
+
+  @@index([returnRequestId])
+  @@index([itemId])
+}
+
+// Refund Transaction - การคืนเงินจริง
+model RefundTransaction {
+  id              String        @id @default(uuid())
+  returnRequestId String
+  returnRequest   ReturnRequest @relation(fields: [returnRequestId], references: [id])
+
+  // Payment Integration
+  chargeId String? // Original charge ที่จะ refund
+  charge   Charge? @relation("OriginalCharge", fields: [chargeId], references: [id])
+
+  refundId String? // Refund record ใน payment system
+  refund   Refund? @relation("RefundTransactionDetails", fields: [refundId], references: [id])
+
+  // Refund Details
+  refundAmount Decimal @default(0.00) @db.Decimal(10, 2)
+  refundReason String
+
+  status      RefundStatus @default(PENDING)
+  processedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([returnRequestId])
+  @@index([chargeId])
+  @@index([refundId])
+}
+
+// ----
+// Shipping System with Shippop Integration
+// ----
+
+// Courier Providers (Flash, Kerry, Thailand Post, etc.)
+model Courier {
+  id       String  @id @default(uuid())
+  code     String  @unique // 'FLASH', 'KERRY', 'THP'
+  name     String // 'Flash Express', 'Kerry Express'
+  isActive Boolean @default(true)
+  meta     Json? // additional settings
+
+  services Service[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Shipping Services (Standard, Express, etc.)
+model Service {
+  id          String  @id @default(uuid())
+  code        String // 'STANDARD', 'EXPRESS'
+  name        String // 'Standard Delivery'
+  courierCode String
+  courier     Courier @relation(fields: [courierCode], references: [code])
+
+  options  Json? // pickup/dropoff, insurance, cod options
+  isActive Boolean @default(true)
+
+  rateQuotes RateQuote[]
+  shipments  Shipment[]
+
+  @@unique([courierCode, code])
+}
+
+// Generic Shipment model that works with all transaction types
+model Shipment {
+  id String @id @default(uuid())
+
+  // Transaction Relations (polymorphic - only one should be filled)
+  orderId String?
+  order   Order?  @relation(fields: [orderId], references: [id])
+
+  auctionId String?
+  auction   Auction? @relation(fields: [auctionId], references: [id])
+
+  satisfyId String?
+  satisfy   Satisfy? @relation(fields: [satisfyId], references: [id])
+
+  rfqOrderId String?
+  rfqOrder   RFQOrder? @relation(fields: [rfqOrderId], references: [id])
+
+  // Address Relations
+  senderAddressId String
+  senderAddress   UserAddress @relation("SenderShipments", fields: [senderAddressId], references: [id])
+
+  receiverAddressId String
+  receiverAddress   UserAddress @relation("ReceiverShipments", fields: [receiverAddressId], references: [id])
+
+  // Shipping Service
+  courierCode String
+  serviceCode String
+  service     Service @relation(fields: [courierCode, serviceCode], references: [courierCode, code])
+
+  // Shippop Integration Fields
+  purchaseId String? @unique // from Booking API
+  trackingNo String? @unique // from Confirm API
+  labelUrl   String? // from Label API
+
+  // Financial
+  codAmount       Decimal @default(0.00) @db.Decimal(10, 2) // Cash on Delivery
+  insuranceAmount Decimal @default(0.00) @db.Decimal(10, 2)
+  shippingCost    Decimal @default(0.00) @db.Decimal(10, 2) // ค่าขนส่ง
+  totalCost       Decimal @default(0.00) @db.Decimal(10, 2) // รวมค่าธรรมเนียมทั้งหมด
+  currency        String  @default("THB")
+
+  // Status & Timestamps
+  status      ShipmentStatus @default(DRAFT)
+  bookedAt    DateTime?
+  confirmedAt DateTime?
+
+  // Raw Data from Shippop
+  rawBooking Json? // raw response from booking/confirm
+
+  // Relations
+  parcels        ShipmentParcel[]
+  rateQuotes     RateQuote[]
+  trackingEvents TrackingEvent[]
+  labelFiles     LabelFile[]
+  cancellation   Cancellation?
+
+  // Payment for shipping costs
+  shippingPayments ShippingPayment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([auctionId])
+  @@index([satisfyId])
+  @@index([rfqOrderId])
+  @@index([purchaseId])
+  @@index([trackingNo])
+  @@index([status])
+}
+
+// Parcel details for shipments
+model ShipmentParcel {
+  id         String   @id @default(uuid())
+  shipmentId String
+  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  weightKg    Float
+  lengthCm    Float?
+  widthCm     Float?
+  heightCm    Float?
+  description String?
+
+  @@index([shipmentId])
+}
+
+// Rate quotes from different couriers
+model RateQuote {
+  id         String    @id @default(uuid())
+  shipmentId String?
+  shipment   Shipment? @relation(fields: [shipmentId], references: [id])
+
+  courierCode String
+  serviceCode String
+  service     Service @relation(fields: [courierCode, serviceCode], references: [courierCode, code])
+
+  price    Decimal @default(0.00) @db.Decimal(10, 2)
+  currency String  @default("THB")
+  etdDays  Int? // estimated delivery days
+
+  expiresAt DateTime?
+  rawRate   Json? // raw response from rate API
+
+  createdAt DateTime @default(now())
+
+  @@index([shipmentId])
+  @@index([courierCode, serviceCode])
+}
+
+// Tracking events from webhooks or polling
+model TrackingEvent {
+  id         String   @id @default(uuid())
+  shipmentId String
+  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  statusCode String // normalized status
+  statusText String // original status from provider
+  location   String?
+  eventTime  DateTime // when the event happened
+  rawPayload Json? // raw tracking data
+
+  // Webhook source
+  webhookLogId String?
+  webhookLog   WebhookLog? @relation(fields: [webhookLogId], references: [id])
+
+  receivedAt DateTime @default(now())
+
+  @@index([shipmentId])
+  @@index([statusCode])
+  @@index([eventTime])
+}
+
+// Label files (PDF/ZPL)
+model LabelFile {
+  id         String   @id @default(uuid())
+  shipmentId String
+  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  fileUrl  String? // remote URL from Shippop
+  filePath String? // local file path if cached
+  format   String // 'pdf', 'zpl'
+
+  createdAt DateTime @default(now())
+
+  @@index([shipmentId])
+}
+
+// Shipment cancellation
+model Cancellation {
+  id         String   @id @default(uuid())
+  shipmentId String   @unique
+  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  reason      String
+  status      CancellationStatus @default(REQUESTED)
+  rawResponse Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Webhook logs from Shippop
+model WebhookLog {
+  id        String @id @default(uuid())
+  eventType String // 'tracking', 'purchase', etc.
+  payload   Json
+
+  trackingEvents TrackingEvent[]
+
+  receivedAt DateTime @default(now())
+
+  @@index([eventType])
+}
+
+// ----
+// Shipping Payment System
+// ----
+
+// Payment for shipping costs (separate from order payment)
+model ShippingPayment {
+  id         String   @id @default(uuid())
+  shipmentId String
+  shipment   Shipment @relation(fields: [shipmentId], references: [id])
+
+  // Who pays for shipping
+  payerId String
+  payer   User   @relation(fields: [payerId], references: [id])
+
+  // Payment details
+  amount      Decimal             @default(0.00) @db.Decimal(10, 2)
+  currency    String              @default("THB")
+  paymentType ShippingPaymentType
+
+  // Integration with main payment system
+  chargeId String?
+  charge   Charge? @relation(fields: [chargeId], references: [id])
+
+  status ShippingPaymentStatus @default(PENDING)
+  paidAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shipmentId])
+  @@index([payerId])
+  @@index([status])
+}
+
+model BuyerReportItem {
+  id        String         @id @default(uuid())
+  buyerId   String
+  itemId    String
+  typeId    String
+  shopId    String
+  reason    String
+  images    String[]
+  createdAt DateTime       @default(now())
+  buyer     User           @relation(fields: [buyerId], references: [id])
+  item      Item           @relation(fields: [itemId], references: [id])
+  type      ReportItemType @relation(fields: [typeId], references: [id])
+  shop      Shop           @relation(fields: [shopId], references: [id])
+
+  @@index([buyerId])
+  @@index([itemId])
+  @@index([typeId])
+  @@index([shopId])
+}
+
+model ReportItemType {
+  id               String            @id @default(uuid())
+  name             String
+  buyerReportItems BuyerReportItem[]
+}
+
+// ----
+// Enhanced Models (adding shipping relations to existing models)
+// ----
+
+// Add shipping relation to existing Order model
+// Order already exists, just adding relation in a comment:
+// Order ||--o{ Shipment : "ships via"
+
+// Add shipping relation to existing Auction model  
+// Auction ||--o{ Shipment : "ships via"
+
+// Add shipping relation to existing Satisfy model
+// Satisfy ||--o{ Shipment : "ships via"
+
+// Add shipping relations to existing UserAddress model
+// UserAddress ||--o{ Shipment : "sender/receiver"
+
+// Add shipping payment relation to existing User model
+// User ||--o{ ShippingPayment : "pays for"
+
+// Add shipping payment relation to existing Charge model
+// Charge ||--o{ ShippingPayment : "pays for"
+
+// ----
+// Enums for Shipping System
+// ----
+
+enum ShipmentStatus {
+  DRAFT // สร้างแล้ว ยังไม่ได้เลือก courier
+  QUOTED // ได้ quote แล้ว
+  BOOKED // book กับ Shippop แล้ว (มี purchase_id)
+  CONFIRMED // confirm แล้ว (มี tracking_no)
+  LABEL_ISSUED // ออก label แล้ว
+  IN_TRANSIT // อยู่ระหว่างขนส่ง
+  DELIVERED // ส่งถึงแล้ว
+  FAILED // ส่งไม่สำเร็จ
+  CANCELED // ยกเลิก
+}
+
+enum CancellationStatus {
+  REQUESTED // ขอยกเลิก
+  APPROVED // อนุมัติยกเลิก
+  REJECTED // ปฏิเสธการยกเลิก
+  COMPLETED // ยกเลิกเรียบร้อย
+}
+
+enum ShippingPaymentType {
+  PREPAID // จ่ายล่วงหน้า (ปกติ)
+  COD // เก็บเงินปลายทาง
+  CREDIT // เครดิต (สำหรับลูกค้า VIP)
+}
+
+enum ShippingPaymentStatus {
+  PENDING // รอชำระ
+  PAID // ชำระแล้ว
+  FAILED // ชำระไม่สำเร็จ
+  REFUNDED // คืนเงิน
+}
+
+enum ReturnReason {
+  BUYER_REMORSE // เปลี่ยนใจ
+  DEFECTIVE // ของเสีย
+  NOT_AS_DESCRIBED // ไม่ตรงตามที่อธิบาย
+  WRONG_ITEM // ของผิดชิ้น
+  DAMAGED_SHIPPING // เสียหายระหว่างขนส่ง
+  SIZE_ISSUE // ปัญหาเรื่องขนาด
+  OTHER // อื่นๆ
+}
+
+enum ReturnStatus {
+  PENDING // รอพิจารณา
+  APPROVED // อนุมัติ
+  REJECTED // ปฏิเสธ
+  SHIPPING_BACK // กำลังส่งคืน
+  RECEIVED // รับของคืนแล้ว
+  INSPECTING // กำลังตรวจสอบ
+  COMPLETED // เสร็จสิ้น
+  CANCELLED // ยกเลิก
+}
+
+enum RefundStatus {
+  PENDING // รอดำเนินการ
+  PROCESSING // กำลังดำเนินการ
+  COMPLETED // คืนเงินเรียบร้อย
+  FAILED // คืนเงินไม่สำเร็จ
+  CANCELLED // ยกเลิกการคืนเงิน
+}
+
+// Chat System Enums
+enum ChatType {
+  USER_SHOP // แชทระหว่าง User กับ Shop
+  USER_ADMIN // แชทระหว่าง User กับ Admin
+  SHOP_ADMIN // แชทระหว่าง Shop กับ Admin
+}
+
+enum ChatStatus {
+  ACTIVE // กำลังใช้งาน
+  ARCHIVED // เก็บเข้าคลัง
+  BLOCKED // ถูกบล็อค
+}
+
+enum ChatSenderType {
+  USER // ผู้ใช้ปกติ
+  SHOP // ร้านค้า
+  ADMIN // ผู้ดูแลระบบ
+}
+
+enum ChatMessageType {
+  TEXT // ข้อความธรรมดา
+  IMAGE // รูปภาพ 
+  PRODUCT // ส่งสินค้า (เก็บ itemId ใน attachments)
+  ORDER // ส่งคำสั่งซื้อ (เก็บ orderId ใน attachments)
+  REPLY // ตอบกลับข้อความ
+  SYSTEM // ข้อความจากระบบ
+}
+
+// Privacy Policy System Enums
+enum PrivacyPolicyType {
+  DATA_DISCLOSURE // การเปิดเผยข้อมูล
+  APP_ACCESS // การเข้าถึงแอป (GPS, Camera, etc.)
+}
+
+// Media Type Enum
+enum MediaType {
+  IMAGE // รูปภาพ
+  VIDEO // วิดีโอ
+}
+
+// Item Variant Type Enum
+enum ItemVariantType {
+  SINGLE // สินค้าแบบเดียว (1 variant)
+  MULTIPLE // สินค้าหลายแบบ (หลาย variants)
+}
+
+// Wallet System Enums
+enum WithdrawalStatus {
+  PROCESSING // กำลังดำเนินการ (ส่งไป Omise แล้ว)
+  COMPLETED // ถอนเงินสำเร็จ
+  FAILED // ถอนเงินไม่สำเร็จ
+  CANCELLED // ยกเลิกการถอน
+}
+
+enum WalletTransactionType {
+  CREDIT // เงินเข้า (จาก order complete, auction win, etc.)
+  DEBIT // เงินออก (ถอนเงิน, claim refund, etc.)
+}
+
+// Notification System Enums
+enum NotificationType {
+  ORDER // แจ้งเตือนเกี่ยวกับคำสั่งซื้อ
+  AUCTION // แจ้งเตือนการประมูล
+  PAYMENT // แจ้งเตือนการชำระเงิน
+  WITHDRAWAL // แจ้งเตือนการถอนเงิน
+  PROMOTION // แจ้งเตือนโปรโมชั่น
+  SYSTEM // แจ้งเตือนระบบ
+  CHAT // แจ้งเตือนแชท
+  REVIEW // แจ้งเตือนรีวิว
+  GENERAL // แจ้งเตือนทั่วไป
+}
+
+enum NotificationPriority {
+  LOW // ความสำคัญต่ำ
+  NORMAL // ปกติ
+  HIGH // สำคัญ
+  URGENT // ด่วนมาก
+}
+
+enum NotificationTarget {
+  ALL_USERS // ส่งให้ผู้ใช้ทุกคน
+  SPECIFIC_USERS // ส่งให้ผู้ใช้เฉพาะ (ใช้ UserNotification)
+  USER_ROLE // ส่งตาม role ผู้ใช้
+  SHOP_OWNERS // ส่งให้เจ้าของร้านค้า
+}
+
+enum UserNotificationStatus {
+  UNREAD // ยังไม่ได้อ่าน
+  READ // อ่านแล้ว
+  DISMISSED // ปิดไปแล้ว
+}
+
+enum NotificationReferenceType {
+  ORDER
+  AUCTION
+  ITEM
+  SHOP
+  USER
+  WITHDRAWAL
+  REFUND
+  PAYMENT
+  CHAT_CONVERSATION
+  SHOP_REVIEW
+  RFQ
+  RFQ_QUOTATION
+  RFQ_ORDER
+}

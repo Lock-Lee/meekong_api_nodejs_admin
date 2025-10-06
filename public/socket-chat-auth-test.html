@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meekong Chat System with Authentication</title>
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        .status.connected { background-color: #d4edda; color: #155724; }
+        .status.disconnected { background-color: #f8d7da; color: #721c24; }
+        .status.authenticated { background-color: #cce7ff; color: #004085; }
+        .status.error { background-color: #f8d7da; color: #721c24; }
+        
+        input, button, select {
+            padding: 10px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover { background-color: #0056b3; }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .messages {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background-color: #fafafa;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .message {
+            margin-bottom: 10px;
+            padding: 8px;
+            background-color: white;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .message.own {
+            background-color: #e3f2fd;
+            border-left-color: #2196f3;
+            margin-left: 20px;
+        }
+        .message.system {
+            background-color: #fff3cd;
+            border-left-color: #ffc107;
+            font-style: italic;
+        }
+        .message .meta {
+            font-size: 11px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .typing-indicator {
+            color: #666;
+            font-style: italic;
+            padding: 5px;
+            min-height: 20px;
+        }
+        
+        .user-list {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        
+        .auth-section {
+            background-color: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        
+        .chat-section {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        .chat-section.enabled {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"], input[type="password"], textarea {
+            width: 100%;
+            box-sizing: border-box;
+        }
+        textarea {
+            min-height: 60px;
+            resize: vertical;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔐 Meekong Chat System with Authentication</h1>
+    
+    <div class="container auth-section">
+        <h3>Authentication</h3>
+        <div class="form-group">
+            <label for="serverInput">Server URL:</label>
+            <select id="serverInput">
+                <option value="http://localhost:3000">localhost:3000 (Development)</option>
+                <option value="http://18.143.121.54" selected>18.143.121.54 (Production)</option>
+            </select>
+            <button id="connectBtn">🔌 Connect</button>
+        </div>
+        <div class="form-group">
+            <label for="tokenInput">JWT Token:</label>
+            <textarea id="tokenInput" placeholder="Paste your JWT token here..." rows="3"></textarea>
+            <small>Get token from: POST /api/auth/login</small>
+        </div>
+        <div class="form-group">
+            <label for="usernameInput">Username (Optional):</label>
+            <input type="text" id="usernameInput" placeholder="Your display name" />
+        </div>
+        <button id="authenticateBtn" disabled>🔐 Authenticate</button>
+        <button id="disconnectBtn" disabled>❌ Disconnect</button>
+    </div>
+
+    <div class="container">
+        <div id="connectionStatus" class="status disconnected">❌ Disconnected</div>
+        <div id="authStatus" class="status">🔑 Not authenticated</div>
+        <div id="userCount" class="user-list">👥 Users online: 0</div>
+    </div>
+
+    <div class="container chat-section" id="chatSection">
+        <h3>Chat Controls</h3>
+        
+        <div class="form-group">
+            <label for="conversationId">Conversation ID:</label>
+            <input type="text" id="conversationId" placeholder="Enter conversation ID" value="test-conversation-1" />
+            <button id="joinConversationBtn">🏠 Join Conversation</button>
+            <button id="leaveConversationBtn">🚪 Leave Conversation</button>
+        </div>
+
+        <div class="form-group">
+            <label for="messageInput">Message:</label>
+            <input type="text" id="messageInput" placeholder="Type your message..." />
+            <button id="sendMessageBtn">📤 Send Message</button>
+        </div>
+
+        <div class="form-group">
+            <button id="typingBtn">⌨️ Start Typing</button>
+            <button id="stopTypingBtn">⏹️ Stop Typing</button>
+            <button id="markReadBtn">📖 Mark as Read</button>
+        </div>
+
+        <div class="messages" id="messages"></div>
+        <div class="typing-indicator" id="typingIndicator"></div>
+    </div>
+
+    <div class="container">
+        <h3>📋 Event Log</h3>
+        <div class="messages" id="eventLog"></div>
+        <button onclick="clearLog()">🗑️ Clear Log</button>
+    </div>
+
+    <script>
+        // Socket.IO client variables
+        let socket = null;
+        let currentConversationId = null;
+        let isAuthenticated = false;
+        let isConnected = false;
+
+        // DOM elements
+        const serverInput = document.getElementById('serverInput');
+        const connectBtn = document.getElementById('connectBtn');
+        const tokenInput = document.getElementById('tokenInput');
+        const usernameInput = document.getElementById('usernameInput');
+        const authenticateBtn = document.getElementById('authenticateBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const authStatus = document.getElementById('authStatus');
+        const userCount = document.getElementById('userCount');
+        const chatSection = document.getElementById('chatSection');
+        const conversationIdInput = document.getElementById('conversationId');
+        const joinConversationBtn = document.getElementById('joinConversationBtn');
+        const leaveConversationBtn = document.getElementById('leaveConversationBtn');
+        const messageInput = document.getElementById('messageInput');
+        const sendMessageBtn = document.getElementById('sendMessageBtn');
+        const typingBtn = document.getElementById('typingBtn');
+        const stopTypingBtn = document.getElementById('stopTypingBtn');
+        const markReadBtn = document.getElementById('markReadBtn');
+        const messages = document.getElementById('messages');
+        const typingIndicator = document.getElementById('typingIndicator');
+        const eventLog = document.getElementById('eventLog');
+
+        // Helper functions
+        function logEvent(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = `message ${type}`;
+            logEntry.innerHTML = `<strong>[${timestamp}]</strong> ${message}`;
+            eventLog.appendChild(logEntry);
+            eventLog.scrollTop = eventLog.scrollHeight;
+        }
+
+        function addMessage(content, type = 'message', meta = '') {
+            const messageEl = document.createElement('div');
+            messageEl.className = `message ${type}`;
+            messageEl.innerHTML = `${content}${meta ? `<div class="meta">${meta}</div>` : ''}`;
+            messages.appendChild(messageEl);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        function updateChatSection(enabled) {
+            chatSection.classList.toggle('enabled', enabled);
+        }
+
+        function clearLog() {
+            eventLog.innerHTML = '';
+        }
+
+        function connectToServer() {
+            const serverUrl = serverInput.value;
+            
+            // Disconnect existing socket if any
+            if (socket) {
+                socket.disconnect();
+            }
+
+            // Create new socket connection
+            socket = io(serverUrl, {
+                autoConnect: true,
+                reconnection: true,
+                reconnectionAttempts: 5,
+                reconnectionDelay: 1000,
+                timeout: 20000
+            });
+
+            setupSocketEventHandlers();
+            logEvent(`Attempting to connect to: ${serverUrl}`);
+        }
+
+        function setupSocketEventHandlers() {
+            if (!socket) return;
+
+            // Socket event handlers
+            socket.on('connect', () => {
+                connectionStatus.textContent = '✅ Connected';
+                connectionStatus.className = 'status connected';
+                connectBtn.textContent = '🔌 Connect';
+                connectBtn.disabled = false;
+                authenticateBtn.disabled = false;
+                disconnectBtn.disabled = false;
+                isConnected = true;
+                logEvent('Connected to server', 'system');
+            });
+
+            socket.on('disconnect', () => {
+                connectionStatus.textContent = '❌ Disconnected';
+                connectionStatus.className = 'status disconnected';
+                authStatus.textContent = '🔑 Not authenticated';
+                authStatus.className = 'status';
+                connectBtn.textContent = '🔌 Connect';
+                connectBtn.disabled = false;
+                authenticateBtn.disabled = true;
+                disconnectBtn.disabled = true;
+                isConnected = false;
+                isAuthenticated = false;
+                updateChatSection(false);
+                logEvent('Disconnected from server', 'system');
+            });
+
+            socket.on('connect_error', (error) => {
+                connectionStatus.textContent = '❌ Connection Failed';
+                connectionStatus.className = 'status error';
+                connectBtn.textContent = '🔌 Connect';
+                connectBtn.disabled = false;
+                logEvent(`Connection failed: ${error.message}`, 'error');
+            });
+
+        socket.on('authentication_success', (data) => {
+            authStatus.textContent = `🎉 Authenticated as: ${data.username} (${data.userId})`;
+            authStatus.className = 'status authenticated';
+            isAuthenticated = true;
+            updateChatSection(true);
+            logEvent(`Authentication successful: ${data.username}`, 'system');
+        });
+
+        socket.on('authentication_error', (data) => {
+            authStatus.textContent = `❌ Auth Error: ${data.error}`;
+            authStatus.className = 'status error';
+            isAuthenticated = false;
+            updateChatSection(false);
+            logEvent(`Authentication failed: ${data.error}`, 'error');
+            alert(`Authentication failed: ${data.error}`);
+        });
+
+        socket.on('login', (data) => {
+            userCount.textContent = `👥 Users online: ${data.numUsers}`;
+            logEvent(`Login successful, ${data.numUsers} users online`, 'system');
+        });
+
+        socket.on('user_joined', (data) => {
+            userCount.textContent = `👥 Users online: ${data.numUsers}`;
+            addMessage(`👋 ${data.username} joined the chat`, 'system');
+            logEvent(`User joined: ${data.username}`, 'system');
+        });
+
+        socket.on('user_left', (data) => {
+            userCount.textContent = `👥 Users online: ${data.numUsers}`;
+            addMessage(`👋 ${data.username} left the chat`, 'system');
+            logEvent(`User left: ${data.username}`, 'system');
+        });
+
+        socket.on('new_message', (data) => {
+            const isOwn = data.username === usernameInput.value;
+            const meta = `${data.username} • ${new Date(data.timestamp).toLocaleTimeString()} • ${data.conversationId}`;
+            addMessage(data.message, isOwn ? 'own' : 'message', meta);
+            logEvent(`New message from ${data.username}: ${data.message.substring(0, 50)}...`);
+        });
+
+        socket.on('conversation_joined', (data) => {
+            addMessage(`🏠 ${data.username} joined conversation ${data.conversationId}`, 'system');
+            logEvent(`User joined conversation: ${data.username} → ${data.conversationId}`);
+        });
+
+        socket.on('conversation_left', (data) => {
+            addMessage(`🚪 ${data.username} left conversation ${data.conversationId}`, 'system');
+            logEvent(`User left conversation: ${data.username} ← ${data.conversationId}`);
+        });
+
+        socket.on('typing', (data) => {
+            typingIndicator.textContent = `⌨️ ${data.username} is typing...`;
+            logEvent(`${data.username} is typing in ${data.conversationId}`);
+            
+            // Clear typing indicator after 3 seconds
+            setTimeout(() => {
+                if (typingIndicator.textContent.includes(data.username)) {
+                    typingIndicator.textContent = '';
+                }
+            }, 3000);
+        });
+
+        socket.on('stop_typing', (data) => {
+            if (typingIndicator.textContent.includes(data.username)) {
+                typingIndicator.textContent = '';
+            }
+            logEvent(`${data.username} stopped typing`);
+        });
+
+            socket.on('message_read', (data) => {
+                addMessage(`📖 Messages marked as read in conversation ${data.conversationId}`, 'system');
+                logEvent(`Messages read in conversation: ${data.conversationId}`);
+            });
+        }
+
+        // Button event handlers
+        connectBtn.addEventListener('click', () => {
+            if (isConnected) {
+                if (socket) {
+                    socket.disconnect();
+                }
+            } else {
+                connectBtn.textContent = '🔄 Connecting...';
+                connectBtn.disabled = true;
+                connectToServer();
+            }
+        });
+
+        authenticateBtn.addEventListener('click', () => {
+            if (!socket || !isConnected) {
+                alert('Please connect to server first');
+                return;
+            }
+
+            const token = tokenInput.value.trim();
+            const username = usernameInput.value.trim();
+
+            if (!token) {
+                alert('Please enter a JWT token');
+                return;
+            }
+
+            socket.emit('authenticate', { token, username });
+            logEvent(`Attempting authentication with token: ${token.substring(0, 20)}...`);
+        });
+
+        disconnectBtn.addEventListener('click', () => {
+            if (socket) {
+                socket.disconnect();
+            }
+        });
+
+        joinConversationBtn.addEventListener('click', () => {
+            if (!socket || !isConnected) {
+                alert('Please connect to server first');
+                return;
+            }
+            const conversationId = conversationIdInput.value.trim();
+            if (!conversationId) {
+                alert('Please enter a conversation ID');
+                return;
+            }
+            currentConversationId = conversationId;
+            socket.emit('join_conversation', conversationId);
+            logEvent(`Joining conversation: ${conversationId}`);
+        });
+
+        leaveConversationBtn.addEventListener('click', () => {
+            if (!socket || !isConnected) {
+                alert('Please connect to server first');
+                return;
+            }
+            if (!currentConversationId) {
+                alert('Not in any conversation');
+                return;
+            }
+            socket.emit('leave_conversation', currentConversationId);
+            logEvent(`Leaving conversation: ${currentConversationId}`);
+            currentConversationId = null;
+        });
+
+        sendMessageBtn.addEventListener('click', () => {
+            if (!socket || !isConnected) {
+                alert('Please connect to server first');
+                return;
+            }
+            const message = messageInput.value.trim();
+            const conversationId = conversationIdInput.value.trim();
+            
+            if (!message || !conversationId) {
+                alert('Please enter both message and conversation ID');
+                return;
+            }
+
+            socket.emit('new_message', { message, conversationId });
+            
+            messageInput.value = '';
+            logEvent(`Sent message: ${message}`);
+        });
+
+        typingBtn.addEventListener('click', () => {
+            if (!socket || !isConnected) {
+                alert('Please connect to server first');
+                return;
+            }
+            const conversationId = conversationIdInput.value.trim();
+            if (!conversationId) {
+                alert('Please enter a conversation ID');
+                return;
+            }
+            socket.emit('typing', { conversationId });
+            logEvent(`Started typing in: ${conversationId}`);
+        });
+
+        stopTypingBtn.addEventListener('click', () => {
+            if (!socket || !isConnected) {
+                alert('Please connect to server first');
+                return;
+            }
+            const conversationId = conversationIdInput.value.trim();
+            if (!conversationId) {
+                alert('Please enter a conversation ID');
+                return;
+            }
+            socket.emit('stop_typing', { conversationId });
+            logEvent(`Stopped typing in: ${conversationId}`);
+        });
+
+        markReadBtn.addEventListener('click', () => {
+            if (!socket || !isConnected) {
+                alert('Please connect to server first');
+                return;
+            }
+            const conversationId = conversationIdInput.value.trim();
+            if (!conversationId) {
+                alert('Please enter a conversation ID');
+                return;
+            }
+            socket.emit('mark_as_read', { conversationId });
+            logEvent(`Marked messages as read in: ${conversationId}`);
+        });
+
+        // Auto-send message on Enter
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessageBtn.click();
+            }
+        });
+
+        // Sample JWT token for testing
+        window.addEventListener('load', () => {
+            // You can put a sample token here for testing
+            // tokenInput.value = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...';
+            
+            logEvent('Page loaded. Select server and connect first.', 'system');
+            addMessage('💡 Welcome to Meekong Chat System!', 'system');
+            addMessage('� Please select a server and connect first.', 'system');
+            addMessage('🔐 Then authenticate with your JWT token to start chatting.', 'system');
+            addMessage('📝 You can get a token by logging in via: POST /api/auth/login', 'system');
+        });
+    </script>
+</body>
+</html>

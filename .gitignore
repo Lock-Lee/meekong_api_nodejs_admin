@@ -1,0 +1,33 @@
+node_modules
+# Keep environment variables out of version control 
+.env
+/generated/prisma
+
+# # Node.js
+# node_modules/
+# npm-debug.log*
+# yarn-debug.log*
+# yarn-error.log*
+# .env
+# .DS_Store
+# *.log
+# pids
+# logs
+# results
+# coverage/
+# .nyc_output/
+# .temp/
+# .vscode/
+# .idea/
+# .project
+# .settings/
+# tmp/
+# temp/
+# build/
+dist/
+public/images/
+# public/dist/
+
+# Claude Code
+CLAUDE.md
+.claude

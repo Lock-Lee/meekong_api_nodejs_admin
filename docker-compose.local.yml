@@ -1,0 +1,31 @@
+services:
+  # Redis for BullMQ job queues
+  redis:
+    image: public.ecr.aws/docker/library/redis:7-alpine
+    container_name: meekong-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  # LocalStack for S3 simulation
+  localstack:
+    image: localstack/localstack:2.3
+    container_name: meekong-s3
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=s3
+      - DEBUG=0
+      - DATA_DIR=/tmp/localstack/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+# No persistent volumes needed for testing

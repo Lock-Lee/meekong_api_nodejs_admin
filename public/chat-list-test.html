@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat List with Unread Count</title>
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        .status.connected { background-color: #d4edda; color: #155724; }
+        .status.disconnected { background-color: #f8d7da; color: #721c24; }
+        
+        .server-selection {
+            margin-bottom: 20px;
+        }
+        
+        select, input, button {
+            padding: 10px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover { background-color: #0056b3; }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .conversation-list {
+            margin-top: 20px;
+        }
+        
+        .conversation-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .conversation-item:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .conversation-item:last-child {
+            border-bottom: none;
+        }
+        
+        .conversation-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background-color: #007bff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            margin-right: 15px;
+        }
+        
+        .conversation-content {
+            flex: 1;
+        }
+        
+        .conversation-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .conversation-last-message {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 2px;
+        }
+        
+        .conversation-time {
+            color: #999;
+            font-size: 12px;
+        }
+        
+        .conversation-unread {
+            min-width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .conversation-unread.red {
+            background-color: #dc3545;
+        }
+        
+        .conversation-unread.green {
+            background-color: #28a745;
+        }
+        
+        .conversation-unread.hidden {
+            display: none;
+        }
+        
+        .controls {
+            margin: 20px 0;
+        }
+        
+        .test-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        
+        .test-buttons button {
+            margin: 0;
+        }
+        
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 2px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>💬 Chat List with Unread Count</h1>
+    
+    <div class="container">
+        <div class="server-selection">
+            <label for="serverSelect">Server:</label>
+            <select id="serverSelect">
+                <option value="http://localhost:3000">localhost:3000 (Development)</option>
+                <option value="http://18.143.121.54" selected>18.143.121.54 (Production)</option>
+            </select>
+            <button id="connectBtn">🔌 Connect</button>
+        </div>
+        
+        <div id="connectionStatus" class="status disconnected">❌ Disconnected</div>
+        
+        <div class="controls">
+            <input type="text" id="usernameInput" placeholder="Username" value="TestUser">
+            <button id="loginBtn" disabled>👤 Login</button>
+            <button id="refreshBtn" disabled>🔄 Refresh List</button>
+        </div>
+    </div>
+    
+    <div class="container">
+        <h3>📋 Conversations</h3>
+        <div class="conversation-list" id="conversationList">
+            <!-- Conversations will be loaded here -->
+        </div>
+    </div>
+    
+    <div class="container">
+        <h3>🧪 Test Actions</h3>
+        <div class="test-buttons">
+            <button id="joinTestBtn" disabled>🏠 Join test-conversation</button>
+            <button id="joinPrivateBtn" disabled>🏠 Join private-123</button>
+            <button id="sendMessageBtn" disabled>📤 Send Test Message</button>
+            <button id="markReadBtn" disabled>📖 Mark as Read</button>
+        </div>
+        
+        <div>
+            <input type="text" id="messageInput" placeholder="Type test message..." disabled>
+            <select id="conversationSelect" disabled>
+                <option value="test-conversation">test-conversation</option>
+                <option value="private-123">private-123</option>
+                <option value="group-456">group-456</option>
+            </select>
+        </div>
+    </div>
+    
+    <div class="container">
+        <h3>📝 Event Log</h3>
+        <div class="log" id="eventLog"></div>
+        <button onclick="clearLog()">🗑️ Clear Log</button>
+    </div>
+
+    <script>
+        let socket = null;
+        let isConnected = false;
+        let currentUsername = '';
+        
+        // DOM elements
+        const serverSelect = document.getElementById('serverSelect');
+        const connectBtn = document.getElementById('connectBtn');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const usernameInput = document.getElementById('usernameInput');
+        const loginBtn = document.getElementById('loginBtn');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const conversationList = document.getElementById('conversationList');
+        const joinTestBtn = document.getElementById('joinTestBtn');
+        const joinPrivateBtn = document.getElementById('joinPrivateBtn');
+        const sendMessageBtn = document.getElementById('sendMessageBtn');
+        const markReadBtn = document.getElementById('markReadBtn');
+        const messageInput = document.getElementById('messageInput');
+        const conversationSelect = document.getElementById('conversationSelect');
+        const eventLog = document.getElementById('eventLog');
+        
+        // Event handlers
+        connectBtn.addEventListener('click', () => {
+            if (isConnected) {
+                if (socket) socket.disconnect();
+            } else {
+                connectToServer();
+            }
+        });
+        
+        loginBtn.addEventListener('click', () => {
+            if (socket && !currentUsername) {
+                currentUsername = usernameInput.value.trim() || 'TestUser';
+                socket.emit('add_user', currentUsername);
+                logEvent(`🔑 Logging in as: ${currentUsername}`, 'info');
+            }
+        });
+        
+        refreshBtn.addEventListener('click', () => {
+            if (socket) {
+                socket.emit('get_conversation_list');
+                logEvent('🔄 Requesting conversation list refresh', 'info');
+            }
+        });
+        
+        joinTestBtn.addEventListener('click', () => {
+            if (socket) {
+                socket.emit('join_conversation', 'test-conversation');
+                logEvent('🏠 Joining test-conversation', 'info');
+            }
+        });
+        
+        joinPrivateBtn.addEventListener('click', () => {
+            if (socket) {
+                socket.emit('join_conversation', 'private-123');
+                logEvent('🏠 Joining private-123', 'info');
+            }
+        });
+        
+        sendMessageBtn.addEventListener('click', () => {
+            const message = messageInput.value.trim() || 'Test message from chat list';
+            const conversationId = conversationSelect.value;
+            
+            if (socket && message && conversationId) {
+                socket.emit('new_message', { message, conversationId });
+                messageInput.value = '';
+                logEvent(`📤 Sent message to ${conversationId}: ${message}`, 'success');
+            }
+        });
+        
+        markReadBtn.addEventListener('click', () => {
+            const conversationId = conversationSelect.value;
+            if (socket && conversationId) {
+                socket.emit('mark_as_read', { conversationId });
+                logEvent(`📖 Marked ${conversationId} as read`, 'info');
+            }
+        });
+        
+        // Socket connection
+        function connectToServer() {
+            const serverUrl = serverSelect.value;
+            connectBtn.textContent = '🔄 Connecting...';
+            connectBtn.disabled = true;
+            
+            socket = io(serverUrl, {
+                autoConnect: true,
+                reconnection: true,
+                reconnectionAttempts: 5,
+                reconnectionDelay: 1000,
+                timeout: 20000
+            });
+            
+            setupSocketHandlers();
+            logEvent(`🔌 Connecting to: ${serverUrl}`, 'info');
+        }
+        
+        function setupSocketHandlers() {
+            socket.on('connect', () => {
+                isConnected = true;
+                connectionStatus.textContent = '✅ Connected';
+                connectionStatus.className = 'status connected';
+                connectBtn.textContent = '❌ Disconnect';
+                connectBtn.disabled = false;
+                loginBtn.disabled = false;
+                logEvent('✅ Connected to server', 'success');
+            });
+            
+            socket.on('disconnect', () => {
+                isConnected = false;
+                connectionStatus.textContent = '❌ Disconnected';
+                connectionStatus.className = 'status disconnected';
+                connectBtn.textContent = '🔌 Connect';
+                connectBtn.disabled = false;
+                loginBtn.disabled = true;
+                refreshBtn.disabled = true;
+                disableTestButtons();
+                currentUsername = '';
+                logEvent('❌ Disconnected from server', 'error');
+            });
+            
+            socket.on('connect_error', (error) => {
+                isConnected = false;
+                connectionStatus.textContent = `❌ Connection Error: ${error.message}`;
+                connectionStatus.className = 'status disconnected';
+                connectBtn.textContent = '🔌 Connect';
+                connectBtn.disabled = false;
+                logEvent(`❌ Connection error: ${error.message}`, 'error');
+            });
+            
+            socket.on('login', (data) => {
+                refreshBtn.disabled = false;
+                enableTestButtons();
+                socket.emit('get_conversation_list'); // Auto refresh conversation list
+                logEvent(`✅ Login successful, ${data.numUsers} users online`, 'success');
+            });
+            
+            socket.on('conversation_list_updated', (data) => {
+                updateConversationList(data.conversations);
+                logEvent(`📋 Conversation list updated: ${data.conversations.length} conversations`, 'info');
+            });
+            
+            socket.on('unread_count_updated', (data) => {
+                updateUnreadCount(data.conversationId, data.unreadCount, data.lastMessage, data.lastMessageTime);
+                logEvent(`🔢 Unread count updated: ${data.conversationId} = ${data.unreadCount}`, 'info');
+            });
+            
+            socket.on('new_message', (data) => {
+                logEvent(`💬 New message in ${data.conversationId}: ${data.message}`, 'info');
+                // Auto refresh conversation list to show updated last message
+                setTimeout(() => {
+                    if (socket) socket.emit('get_conversation_list');
+                }, 500);
+            });
+        }
+        
+        function updateConversationList(conversations) {
+            conversationList.innerHTML = '';
+            
+            if (conversations.length === 0) {
+                conversationList.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">No conversations found</div>';
+                return;
+            }
+            
+            conversations.forEach(conv => {
+                const item = document.createElement('div');
+                item.className = 'conversation-item';
+                item.onclick = () => selectConversation(conv.id);
+                
+                const avatar = document.createElement('div');
+                avatar.className = 'conversation-avatar';
+                avatar.textContent = conv.name.charAt(0).toUpperCase();
+                
+                const content = document.createElement('div');
+                content.className = 'conversation-content';
+                
+                const name = document.createElement('div');
+                name.className = 'conversation-name';
+                name.textContent = conv.name || conv.id;
+                
+                const lastMessage = document.createElement('div');
+                lastMessage.className = 'conversation-last-message';
+                lastMessage.textContent = conv.lastMessage || 'No messages yet';
+                
+                const time = document.createElement('div');
+                time.className = 'conversation-time';
+                time.textContent = conv.lastMessageTime ? new Date(conv.lastMessageTime).toLocaleString() : '';
+                
+                content.appendChild(name);
+                content.appendChild(lastMessage);
+                content.appendChild(time);
+                
+                const unreadBadge = document.createElement('div');
+                unreadBadge.className = 'conversation-unread';
+                unreadBadge.id = `unread-${conv.id}`;
+                
+                if (conv.unreadCount > 0) {
+                    unreadBadge.textContent = conv.unreadCount > 99 ? '99+' : conv.unreadCount.toString();
+                    unreadBadge.classList.add(conv.unreadCount > 10 ? 'red' : 'green');
+                } else {
+                    unreadBadge.classList.add('hidden');
+                }
+                
+                item.appendChild(avatar);
+                item.appendChild(content);
+                item.appendChild(unreadBadge);
+                
+                conversationList.appendChild(item);
+            });
+        }
+        
+        function updateUnreadCount(conversationId, unreadCount, lastMessage, lastMessageTime) {
+            const badge = document.getElementById(`unread-${conversationId}`);
+            if (badge) {
+                if (unreadCount > 0) {
+                    badge.textContent = unreadCount > 99 ? '99+' : unreadCount.toString();
+                    badge.className = 'conversation-unread ' + (unreadCount > 10 ? 'red' : 'green');
+                } else {
+                    badge.className = 'conversation-unread hidden';
+                }
+            }
+        }
+        
+        function selectConversation(conversationId) {
+            // Join the conversation
+            if (socket) {
+                socket.emit('join_conversation', conversationId);
+                conversationSelect.value = conversationId;
+                logEvent(`🏠 Selected and joined: ${conversationId}`, 'info');
+            }
+        }
+        
+        function enableTestButtons() {
+            [joinTestBtn, joinPrivateBtn, sendMessageBtn, markReadBtn, messageInput, conversationSelect].forEach(el => {
+                el.disabled = false;
+            });
+        }
+        
+        function disableTestButtons() {
+            [joinTestBtn, joinPrivateBtn, sendMessageBtn, markReadBtn, messageInput, conversationSelect].forEach(el => {
+                el.disabled = true;
+            });
+        }
+        
+        function logEvent(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `<strong>[${timestamp}]</strong> ${message}`;
+            eventLog.appendChild(entry);
+            eventLog.scrollTop = eventLog.scrollHeight;
+        }
+        
+        function clearLog() {
+            eventLog.innerHTML = '';
+        }
+        
+        // Auto-send message on Enter in message input
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessageBtn.click();
+            }
+        });
+    </script>
+</body>
+</html>
