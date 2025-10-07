@@ -39,24 +39,24 @@ export class ItemController {
             const variantImages: UploadedFile[] = [];
 
             if (req.files) {
-              Object.entries(req.files).forEach(([key, file]) => {
-                if (key.startsWith("variantImages[")) {
-                  const match = key.match(/\[(\d+)\]/); // ดึง index จากชื่อ field เช่น [0]
-                  if (match) {
-                    const index = parseInt(match[1], 10);
-                    variantImages[index] = file as UploadedFile;
-                  }
-                }
-              });
+                Object.entries(req.files).forEach(([key, file]) => {
+                    if (key.startsWith("variantImages[")) {
+                        const match = key.match(/\[(\d+)\]/); // ดึง index จากชื่อ field เช่น [0]
+                        if (match) {
+                            const index = parseInt(match[1], 10);
+                            variantImages[index] = file as UploadedFile;
+                        }
+                    }
+                });
             }
-        
+
             // 4️⃣ ผูกภาพเข้ากับแต่ละ variant
             const variantsWithImages = bodyValidation.data.itemVariants.map((variant: CreateItemVariant, index: number) => ({
-              ...variant,
-              images: variantImages[index] || null, // ถ้าไม่มีรูป ให้ null
+                ...variant,
+                images: variantImages[index] || null, // ถ้าไม่มีรูป ให้ null
             }));
 
-        
+
             // 4. Prepare create request
             const createRequest: any = {
                 ...bodyValidation.data,
@@ -204,21 +204,21 @@ export class ItemController {
             const variantImages: UploadedFile[] = [];
 
             if (req.files) {
-              Object.entries(req.files).forEach(([key, file]) => {
-                if (key.startsWith("variantImages[")) {
-                  const match = key.match(/\[(\d+)\]/); // ดึง index จากชื่อ field เช่น [0]
-                  if (match) {
-                    const index = parseInt(match[1], 10);
-                    variantImages[index] = file as UploadedFile;
-                  }
-                }
-              });
+                Object.entries(req.files).forEach(([key, file]) => {
+                    if (key.startsWith("variantImages[")) {
+                        const match = key.match(/\[(\d+)\]/); // ดึง index จากชื่อ field เช่น [0]
+                        if (match) {
+                            const index = parseInt(match[1], 10);
+                            variantImages[index] = file as UploadedFile;
+                        }
+                    }
+                });
             }
-        
+
             // 4️⃣ ผูกภาพเข้ากับแต่ละ variant
             const variantsWithImages = bodyValidation.data.itemVariants.map((variant: CreateItemVariant, index: number) => ({
-              ...variant,
-              images: variantImages[index] || null, // ถ้าไม่มีรูป ให้ null
+                ...variant,
+                images: variantImages[index] || null, // ถ้าไม่มีรูป ให้ null
             }));
 
             updateRequest.itemVariants = variantsWithImages;
@@ -260,7 +260,7 @@ export class ItemController {
             const status = req.query.status as string;
             const userId = req.userId || "";
 
-            await this.itemService.deleteItem(itemId, userId ,status);
+            await this.itemService.deleteItem(itemId, userId, status);
 
             Logger.business('item_deleted', {
                 requestId: (req as any).requestId,

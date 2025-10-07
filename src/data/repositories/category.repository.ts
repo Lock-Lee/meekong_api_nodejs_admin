@@ -158,6 +158,37 @@ export class CategoryRepository implements ICategoryRepository {
         return this.mapToCategoryData(category);
     }
 
+    async updateCategory(id: string, data: Omit<CategoryData, 'id' | 'createdAt' | 'updatedAt'>): Promise<CategoryData> {
+        const category = await this.prisma.category.update({
+            data: {
+                nameTh: data.nameTh,
+                nameEn: data.nameEn,
+                imageUrl: data.imageUrl,
+                level: data.level,
+                parentId: data.parentId,
+                fullPath: data.fullPath,
+                isLeaf: data.isLeaf,
+                status: data.status,
+            },
+            where: {
+                id: id
+            }
+        });
+
+        return this.mapToCategoryData(category);
+    }
+
+    async deleteCategory(id: string): Promise<CategoryData> {
+        const category = await this.prisma.category.delete({
+            where: {
+                id: id
+            }
+        });
+
+        return this.mapToCategoryData(category);
+    }
+
+
     /**
      * Update category leaf status
      */

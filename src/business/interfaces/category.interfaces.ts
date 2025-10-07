@@ -23,6 +23,14 @@ export interface CreateCategoryRequest {
     level: number;
 }
 
+export interface updateCategoryRequest {
+    nameTh: string;
+    nameEn: string;
+    imageUrl?: string;
+    parentId?: string;
+    level: number;
+}
+
 export interface CategoryHierarchy {
     id: string;
     nameTh: string;
@@ -43,7 +51,8 @@ export interface ICategoryRepository {
     findCategoryByParentId(parentId: string): Promise<CategoryData[]>;
     createCategory(data: Omit<CategoryData, 'id' | 'createdAt' | 'updatedAt'>): Promise<CategoryData>;
     updateCategoryLeafStatus(categoryId: string, isLeaf: boolean): Promise<void>;
-
+    updateCategory(id: string, request: updateCategoryRequest): Promise<CategoryData>;
+    deleteCategory(id: string): Promise<CategoryData>;
     // Hierarchy operations
     findTopLevelCategories(): Promise<CategoryData[]>;
     findCategoryWithChildren(id: string): Promise<CategoryData | null>;
@@ -57,7 +66,8 @@ export interface ICategoryService {
     getAllCategories(): Promise<CategoryHierarchy[]>;
     getCategoryById(id: string): Promise<CategoryData | null>;
     createCategory(request: CreateCategoryRequest): Promise<CategoryData>;
-
+    updateCategory(id: string, request: updateCategoryRequest): Promise<CategoryData>;
+    deleteCategory(id: string): Promise<CategoryData>;
     // Business logic
     validateCategoryHierarchy(parentId: string | undefined, level: number): Promise<CategoryData | null>;
     buildCategoryHierarchy(categories: CategoryData[]): CategoryHierarchy[];

@@ -55,19 +55,34 @@ class CategoryRouter extends BaseRouter {
       {
         /**
          * @swagger
-         * /api/categories/create:
+         * /api/categories:
          *   post:
          *     tags: [Category]
          *     summary: Create a new category
          *     requestBody:
          *       required: true
          *       content:
-         *         application/json:
+         *         multipart/form-data:
          *           schema:
          *             type: object
          *             properties:
-         *               name:
+         *               nameTh:
          *                 type: string
+         *               nameEn:
+         *                 type: string
+         *               level:
+         *                 type: number
+         *               images:
+         *                 type: array
+         *                 items:
+         *                   type: string
+         *                   format: binary
+         *                 description: Images
+
+         *             required:
+         *               - nameTh
+         *               - nameEn
+         *               - level
          *     responses:
          *       201:
          *         description: Category created successfully
@@ -77,6 +92,78 @@ class CategoryRouter extends BaseRouter {
         method: "post",
         path: "/",
         handler: this.categoryController.create.bind(this.categoryController),
+      },
+      {
+        /**
+         * @swagger
+         * /api/categories/{id}:
+         *   patch:
+         *     tags: [Category]
+         *     summary: Update a category
+         *     parameters:
+         *       - in: path
+         *         name: id
+         *         required: true
+         *         schema:
+         *           type: string
+         *         description: Category ID
+         *     requestBody:
+         *       required: true
+         *       content:
+         *         multipart/form-data:
+         *           schema:
+         *             type: object
+         *             properties:
+         *               nameTh:
+         *                 type: string
+         *               nameEn:
+         *                 type: string
+         *               level:
+         *                 type: number
+         *               images:
+         *                 type: array
+         *                 items:
+         *                   type: string
+         *                   format: binary
+         *                 description: Images
+
+         *             required:
+         *               - nameTh
+         *               - nameEn
+         *               - level
+         *     responses:
+         *       201:
+         *         description: Category Update successfully
+         *       400:
+         *         description: Invalid input
+         */
+        method: "patch",
+        path: "/:id",
+        handler: this.categoryController.update.bind(this.categoryController),
+      },
+      {
+        /**
+         * @swagger
+         * /api/categories/{id}:
+         *   delete:
+         *     tags: [Category]
+         *     summary: Delete category by ID
+         *     parameters:
+         *       - in: path
+         *         name: id
+         *         required: true
+         *         schema:
+         *           type: string
+         *         description: Category ID
+         *     responses:
+         *       200:
+         *         description: Successful operation
+         *       404:
+         *         description: Category not found
+         */
+        method: "delete",
+        path: "/:id",
+        handler: this.categoryController.delete.bind(this.categoryController),
       },
     ];
   }

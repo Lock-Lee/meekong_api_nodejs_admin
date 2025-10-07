@@ -6,7 +6,8 @@ import {
     ICategoryRepository,
     CategoryData,
     CreateCategoryRequest,
-    CategoryHierarchy
+    CategoryHierarchy,
+    updateCategoryRequest
 } from "../interfaces/category.interfaces";
 import { ValidationError } from "../../shared/errors/business.errors";
 import { Logger } from "../../shared/utils/logger";
@@ -101,6 +102,67 @@ export class CategoryService implements ICategoryService {
 
         return newCategory;
     }
+
+    /**
+   * Update a new category
+   */
+    async updateCategory(id: string, request: updateCategoryRequest): Promise<CategoryData> {
+        const { nameTh, nameEn, imageUrl, parentId, level } = request;
+
+        Logger.info("Update category", { nameTh, nameEn, level, parentId });
+
+        // 1. Validate required fields
+        this.validateCategoryRequest(request);
+
+        // 2. Validate hierarchy and get parent if exists
+        const parentCategory = await this.validateCategoryHierarchy(parentId, level);
+
+        // 3. Build full path
+        const fullPath = this.buildFullPath(parentCategory, level);
+
+        // 4. Determine if this is a leaf category
+        const isLeaf = level === 4; // Assuming level 4 is always a leaf node
+
+        // 5. Create category
+        const categoryData = {
+            nameTh,
+            nameEn,
+            imageUrl,
+            level,
+            parentId,
+            fullPath,
+            isLeaf,
+            status: Status.ACTIVE,
+        };
+
+        const newCategory = await this.categoryRepository.updateCategory(id, categoryData);
+
+        // 6. Update parent category leaf status if needed
+        if (parentId && parentCategory && parentCategory.isLeaf) {
+            await this.categoryRepository.updateCategoryLeafStatus(parentId, false);
+        }
+
+        Logger.info("Category update successfully", {
+            categoryId: newCategory.id,
+            nameTh: newCategory.nameTh,
+            level: newCategory.level
+        });
+
+        return newCategory;
+    }
+
+    async deleteCategory(id: string): Promise<CategoryData> {
+        Logger.info(`Delete category id: ${id}`);
+        const newCategory = await this.categoryRepository.deleteCategory(id);
+        Logger.info("Category Delete successfully", {
+            categoryId: newCategory.id,
+            nameTh: newCategory.nameTh,
+            level: newCategory.level
+        });
+
+        return newCategory;
+    }
+
 
     /**
      * Validate category hierarchy
