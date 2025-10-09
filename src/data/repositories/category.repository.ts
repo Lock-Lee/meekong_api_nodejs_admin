@@ -5,6 +5,7 @@ import {
     ICategoryRepository,
     CategoryData
 } from "../../business/interfaces/category.interfaces";
+import { Prisma } from "@prisma/client";
 
 @injectable()
 export class CategoryRepository implements ICategoryRepository {
@@ -123,6 +124,52 @@ export class CategoryRepository implements ICategoryRepository {
         return category ? this.mapToCategoryDataWithChildren(category) : null;
     }
 
+    async findCategoryWithSizeUnit(id: string): Promise<CategoryData | null> {
+        const category = await this.prisma.category.findUnique({
+            include: {
+                sizeUnitCategory: {
+                    select: {
+                        id: true,
+                        name: true,
+                        unitSymbol: true,
+                        type: true,
+                        status: true,
+                        createdAt: true,
+                        updatedAt: true
+                    }
+                }
+            },
+            where: {
+                id,
+                status: Status.ACTIVE
+            },
+        });
+        return category || null
+    }
+
+
+    async findCategoryWithSizeUnitId(id: string, sizeUnitId: string): Promise<CategoryData | null> {
+        const sizeUnit = await this.prisma.SizeUnit.findFirst({
+            select: {
+                id: true,
+                name: true,
+                unitSymbol: true,
+                type: true,
+                status: true,
+                createdAt: true,
+                updatedAt: true
+            },
+            where: {
+                id: sizeUnitId,
+                status: Status.ACTIVE,
+                category: {
+                    id: id,
+                },
+            },
+        })
+        return sizeUnit || null
+    }
+
     /**
      * Find categories by parent ID
      */
@@ -156,6 +203,56 @@ export class CategoryRepository implements ICategoryRepository {
         });
 
         return this.mapToCategoryData(category);
+    }
+    async createManyCategories(items: Array<{
+        data: Omit<CategoryData, "id" | "createdAt" | "updatedAt">;
+        parentId?: string | null;
+    }>): Promise<CategoryData[]> {
+        const result = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+            const createdRows: CategoryData[] = [];
+
+            // Track which parents were leaf and must be set to false
+            const parentsToUpdate = new Set<string>();
+
+            for (const { data, parentId } of items) {
+                const created = await tx.category.create({
+                    data: {
+                        nameTh: data.nameTh,
+                        nameEn: data.nameEn,
+                        imageUrl: data.imageUrl,
+                        level: data.level,
+                        parentId: data.parentId,
+                        fullPath: data.fullPath,
+                        isLeaf: data.isLeaf,
+                        status: data.status,
+                    },
+                });
+
+                createdRows.push(this.mapToCategoryData(created));
+
+                if (parentId) {
+                    // Check current isLeaf for this parent inside the same tx
+                    const p = await tx.category.findUnique({
+                        where: { id: parentId },
+                        select: { id: true, isLeaf: true },
+                    });
+                    if (p?.isLeaf) {
+                        parentsToUpdate.add(p.id);
+                    }
+                }
+            }
+
+            if (parentsToUpdate.size > 0) {
+                await tx.category.updateMany({
+                    where: { id: { in: Array.from(parentsToUpdate) } },
+                    data: { isLeaf: false },
+                });
+            }
+
+            return createdRows;
+        });
+
+        return result;
     }
 
     async updateCategory(id: string, data: Omit<CategoryData, 'id' | 'createdAt' | 'updatedAt'>): Promise<CategoryData> {

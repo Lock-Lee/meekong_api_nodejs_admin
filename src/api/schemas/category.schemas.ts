@@ -4,6 +4,11 @@ export const getCategoryByIdParamsSchema = z.object({
     id: z.string().uuid("Invalid category ID format"),
 });
 
+export const getCategoryBySizeUnitIdParamsSchema = z.object({
+    id: z.string().uuid("Invalid category ID format"),
+    sizeUnitId: z.string().uuid("Invalid Size unit ID format"),
+});
+
 export const createCategoryBodySchema = z.object({
     nameTh: z.string().min(1, "Thai name is required"),
     nameEn: z.string().min(1, "English name is required"),
@@ -26,6 +31,7 @@ export const updateCategoryParamsSchema = z.object({
 
 export default {
     getCategoryByIdParams: getCategoryByIdParamsSchema,
+    getCategoryBySizeUnitIdParams: getCategoryBySizeUnitIdParamsSchema,
     createCategory: createCategoryBodySchema,
     updateCategory: updateCategoryBodySchema,
     updateCategoryParams: updateCategoryParamsSchema

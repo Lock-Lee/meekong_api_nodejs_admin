@@ -55,6 +55,44 @@ export class CategoryService implements ICategoryService {
         return category;
     }
 
+    async getCategoryByIdWithSizeUnits(id: string): Promise<CategoryData | null> {
+        Logger.info("Fetching category by ID", { categoryId: id });
+
+        const category = await this.categoryRepository.findCategoryWithSizeUnit(id);
+
+        if (!category) {
+            Logger.warn("Category not found", { categoryId: id });
+            return null;
+        }
+
+        Logger.info("Category retrieved successfully", {
+            categoryId: id,
+            categoryName: category.nameTh
+        });
+
+        return category;
+    }
+
+    async getCategoryByIdWithSizeUnitsId(id: string, sizeUnitId: string): Promise<CategoryData | null> {
+        Logger.info("Fetching category by ID", { categoryId: id });
+
+        const category = await this.categoryRepository.findCategoryWithSizeUnitId(id, sizeUnitId);
+
+        if (!category) {
+            Logger.warn("Category not found", { categoryId: id });
+            return null;
+        }
+
+        Logger.info("Category retrieved successfully", {
+            categoryId: id,
+            categoryName: category.nameTh
+        });
+
+        return category;
+    }
+
+
+
     /**
      * Create a new category
      */
@@ -101,6 +139,48 @@ export class CategoryService implements ICategoryService {
         });
 
         return newCategory;
+    }
+
+    async createManyCategories(requests: CreateCategoryRequest[]): Promise<CategoryData[]> {
+
+        const toCreate: Array<{
+            data: Omit<CategoryData, "id" | "createdAt" | "updatedAt">;
+            parentId?: string | null;
+        }> = [];
+
+        // Pre-validate & prepare
+        for (const req of requests) {
+            // 1) required fields
+            this.validateCategoryRequest(req);
+
+            // 2) parent & hierarchy
+            const parentCategory = await this.validateCategoryHierarchy(req.parentId, req.level);
+
+            // 3) build full path
+            const fullPath = this.buildFullPath(parentCategory, req.level);
+
+            // 4) isLeaf
+            const isLeaf = req.level === 4;
+
+            toCreate.push({
+                data: {
+                    nameTh: req.nameTh,
+                    nameEn: req.nameEn,
+                    imageUrl: req.imageUrl,
+                    level: req.level,
+                    parentId: req.parentId ?? undefined,
+                    fullPath,
+                    isLeaf,
+                    status: Status.ACTIVE,
+                },
+                parentId: req.parentId ?? null,
+            });
+        }
+
+        // 5) Transactionally create & update parents’ leaf flags
+        const created = await this.categoryRepository.createManyCategories(toCreate);
+
+        return created;
     }
 
     /**

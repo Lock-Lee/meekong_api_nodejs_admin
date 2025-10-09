@@ -40,7 +40,7 @@ export class CategoryController {
   /**
    * Upload brand image to filesystem
    */
-  async uploadBrandImage(image: UploadedFile): Promise<UploadResult> {
+  async uploadCategoryImage(image: UploadedFile): Promise<UploadResult> {
     Logger.info("Uploading brand image", { filename: image.name, size: image.size });
 
     // Validate file
@@ -146,6 +146,97 @@ export class CategoryController {
     }
   }
 
+
+  async getBySizeUnit(req: Request, res: Response): Promise<void> {
+    try {
+      const paramsValidation = categorySchema.getCategoryByIdParams.safeParse(req.params);
+      if (!paramsValidation.success) {
+        Logger.warn("Invalid parameters for category retrieval", {
+          errors: paramsValidation.error.issues,
+          requestId: req.id
+        });
+        return Send.error(res, paramsValidation.error.issues, "Invalid parameters.");
+      }
+
+      const { id } = paramsValidation.data;
+
+      Logger.info("Fetching category by ID", { categoryId: id, requestId: req.id });
+
+      const category = await this.categoryService.getCategoryByIdWithSizeUnits(id);
+
+      if (!category) {
+        Logger.warn("Category not found", { categoryId: id, requestId: req.id });
+        return Send.error(res, null, "Category not found.");
+      }
+
+      Logger.info("Category retrieved successfully", {
+        categoryId: id,
+        categoryName: category.nameTh,
+        requestId: req.id
+      });
+
+      return Send.success(res, category, "Category fetched successfully.");
+    } catch (error) {
+      Logger.error("Failed to fetch category by ID", {
+        error: (error as Error).message,
+        categoryId: req.params?.id,
+        requestId: req.id
+      });
+
+      if (error instanceof BusinessError) {
+        return Send.error(res, null, error.message, error.statusCode);
+      }
+
+      return Send.error(res, null, "Failed to fetch category.");
+    }
+  }
+
+
+  async getBySizeUnitId(req: Request, res: Response): Promise<void> {
+    try {
+      const paramsValidation = categorySchema.getCategoryBySizeUnitIdParams.safeParse(req.params);
+      if (!paramsValidation.success) {
+        Logger.warn("Invalid parameters for category retrieval", {
+          errors: paramsValidation.error.issues,
+          requestId: req.id
+        });
+        return Send.error(res, paramsValidation.error.issues, "Invalid parameters.");
+      }
+
+      const { id, sizeUnitId } = paramsValidation.data;
+
+      Logger.info("Fetching Size Unit by ID", { categoryId: id, requestId: req.id });
+
+      const category = await this.categoryService.getCategoryByIdWithSizeUnitsId(id, sizeUnitId);
+
+      if (!category) {
+        Logger.warn("Size Unit not found", { categoryId: id, requestId: req.id });
+        return Send.error(res, null, "Size Unit not found.");
+      }
+
+      Logger.info("Size Unit retrieved successfully", {
+        categoryId: id,
+        sizeUnitId: sizeUnitId,
+        categoryName: category.nameTh,
+        requestId: req.id
+      });
+
+      return Send.success(res, category, "Size Unit fetched successfully.");
+    } catch (error) {
+      Logger.error("Failed to fetch category by ID", {
+        error: (error as Error).message,
+        categoryId: req.params?.id,
+        requestId: req.id
+      });
+
+      if (error instanceof BusinessError) {
+        return Send.error(res, null, error.message, error.statusCode);
+      }
+
+      return Send.error(res, null, "Failed to fetch category.");
+    }
+  }
+
   /**
    * Create a new category
    */
@@ -165,7 +256,7 @@ export class CategoryController {
       }
       const images = req.files?.images as UploadedFile | undefined;
       if (images) {
-        const uploadResult = await this.uploadBrandImage(images);
+        const uploadResult = await this.uploadCategoryImage(images);
         bodyValidation.data.imageUrl = uploadResult.imageUrl;
       }
       const categoryData = { ...bodyValidation.data };
@@ -202,6 +293,76 @@ export class CategoryController {
       return Send.error(res, null, "Failed to create category.");
     }
   }
+  async createMany(req: Request, res: Response): Promise<void> {
+    try {
+      // Accept either JSON array or multipart with `items` JSON string
+      const rawItems = Array.isArray(req.body)
+        ? req.body
+        : (req.body?.items ? JSON.parse(req.body.items) : []);
+
+      if (!Array.isArray(rawItems) || rawItems.length === 0) {
+        return Send.error(res, null, "Items must be a non-empty array.", 400);
+      }
+
+      // Normalize / coerce level to number & validate each
+      const prepared = rawItems.map((it) => ({
+        ...it,
+        level: typeof it.level === "string" ? parseInt(it.level) : it.level,
+      }));
+
+      // Validate with your existing schema per item
+      const failures: Array<{ index: number; errors: unknown }> = [];
+      const validItems: any[] = [];
+      for (let i = 0; i < prepared.length; i++) {
+        const r = categorySchema.createCategory.safeParse(prepared[i]);
+        if (!r.success) {
+          failures.push({ index: i, errors: r.error.errors });
+        } else {
+          validItems.push(r.data);
+        }
+      }
+
+      if (failures.length) {
+        Logger.warn("Invalid items in bulk category creation", { failures, requestId: req.id });
+        return Send.error(res, failures, "Some items are invalid.");
+      }
+
+      const files = req.files?.images as UploadedFile | UploadedFile[] | undefined;
+      if (files) {
+        const fileArray = Array.isArray(files) ? files : [files];
+        // If lengths differ, we only attach for available indexes
+        for (let i = 0; i < validItems.length && i < fileArray.length; i++) {
+          const uploadResult = await this.uploadCategoryImage(fileArray[i]);
+          validItems[i].imageUrl = uploadResult.imageUrl;
+        }
+      }
+
+      Logger.info("Bulk creating categories", {
+        count: validItems.length,
+        requestId: req.id,
+      });
+
+      const created = await this.categoryService.createManyCategories(validItems);
+
+      Logger.info("Bulk categories created", {
+        count: created.length,
+        requestId: req.id,
+      });
+
+      return Send.success(res, created, "Categories created successfully.");
+    } catch (error) {
+      Logger.error("Failed to bulk create categories", {
+        error: (error as Error).message,
+        requestId: req.id,
+      });
+
+      if (error instanceof BusinessError) {
+        return Send.error(res, null, error.message, error.statusCode);
+      }
+
+      return Send.error(res, null, "Failed to bulk create categories.");
+    }
+  }
 
   async update(req: Request, res: Response): Promise<void> {
     try {
@@ -229,7 +390,7 @@ export class CategoryController {
       const images = req.files?.images as UploadedFile | undefined;
 
       if (images) {
-        const uploadResult = await this.uploadBrandImage(images);
+        const uploadResult = await this.uploadCategoryImage(images);
         bodyValidation.data.imageUrl = uploadResult.imageUrl;
       }
       const { id } = paramsValidation.data;
@@ -255,8 +416,6 @@ export class CategoryController {
 
       return Send.success(res, newCategory, "Category update successfully.");
     } catch (error) {
-      console.log(error);
-
       Logger.error("Failed to update category", {
         error: (error as Error).message,
         categoryName: req.body?.nameTh || req.body?.nameEn,

@@ -55,6 +55,61 @@ class CategoryRouter extends BaseRouter {
       {
         /**
          * @swagger
+         * /api/categories/{id}/size-units:
+         *   get:
+         *     tags: [Category]
+         *     summary: Get category by ID
+         *     parameters:
+         *       - in: path
+         *         name: id
+         *         required: true
+         *         schema:
+         *           type: string
+         *         description: Category ID
+         *     responses:
+         *       200:
+         *         description: Successful operation
+         *       404:
+         *         description: Category not found
+         */
+        method: "get",
+        path: "/:id/size-units",
+        handler: this.categoryController.getBySizeUnit.bind(this.categoryController),
+      },
+      /**
+       * @swagger
+       * /api/categories/{id}/size-units/{sizeUnitId}:
+       *   get:
+       *     tags: [Category]
+       *     summary: Get size unit by category and sizeUnitId
+       *     parameters:
+       *       - in: path
+       *         name: id
+       *         required: true
+       *         schema:
+       *           type: string
+       *         description: Category ID
+       *       - in: path
+       *         name: sizeUnitId
+       *         required: true
+       *         schema:
+       *           type: string
+       *         description: Size Unit ID
+       *     responses:
+       *       200:
+       *         description: Successful operation
+       *       404:
+       *         description: Not found
+       */
+      {
+        method: "get",
+        path: "/:id/size-units/:sizeUnitId",
+        handler: this.categoryController.getBySizeUnitId.bind(this.categoryController),
+      },
+
+      {
+        /**
+         * @swagger
          * /api/categories:
          *   post:
          *     tags: [Category]
@@ -92,6 +147,38 @@ class CategoryRouter extends BaseRouter {
         method: "post",
         path: "/",
         handler: this.categoryController.create.bind(this.categoryController),
+      },
+      {
+        /**
+         * @swagger
+         * /api/categories/bulk:
+         *   post:
+         *     tags: [Category]
+         *     summary: Create multiple categories at once
+         *     requestBody:
+         *       required: true
+         *       content:
+         *         multipart/form-data:
+         *           schema:
+         *             type: object
+         *             properties:
+         *               items:
+         *                 type: string
+         *                 description: JSON string of CreateCategory[] (without imageUrl or with placeholders)
+         *               images:
+         *                 type: array
+         *                 items:
+         *                   type: string
+         *                   format: binary
+         *     responses:
+         *       201:
+         *         description: Categories created successfully
+         *       400:
+         *         description: Invalid input
+         */
+        method: "post",
+        path: "/bulk",
+        handler: this.categoryController.createMany.bind(this.categoryController),
       },
       {
         /**
