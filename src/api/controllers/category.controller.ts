@@ -191,6 +191,50 @@ export class CategoryController {
     }
   }
 
+  async getByTags(req: Request, res: Response): Promise<void> {
+    try {
+      const paramsValidation = categorySchema.getCategoryByIdParams.safeParse(req.params);
+      if (!paramsValidation.success) {
+        Logger.warn("Invalid parameters for category retrieval", {
+          errors: paramsValidation.error.issues,
+          requestId: req.id
+        });
+        return Send.error(res, paramsValidation.error.issues, "Invalid parameters.");
+      }
+
+      const { id } = paramsValidation.data;
+
+      Logger.info("Fetching category by ID", { categoryId: id, requestId: req.id });
+
+      const category = await this.categoryService.getCategoryByIdWithTags(id);
+
+      if (!category) {
+        Logger.warn("Category not found", { categoryId: id, requestId: req.id });
+        return Send.error(res, null, "Category not found.");
+      }
+
+      Logger.info("Category retrieved successfully", {
+        categoryId: id,
+        categoryName: category.nameTh,
+        requestId: req.id
+      });
+
+      return Send.success(res, category, "Category fetched successfully.");
+    } catch (error) {
+      Logger.error("Failed to fetch category by ID", {
+        error: (error as Error).message,
+        categoryId: req.params?.id,
+        requestId: req.id
+      });
+
+      if (error instanceof BusinessError) {
+        return Send.error(res, null, error.message, error.statusCode);
+      }
+
+      return Send.error(res, null, "Failed to fetch category.");
+    }
+  }
+
 
   async getBySizeUnitId(req: Request, res: Response): Promise<void> {
     try {

@@ -91,6 +91,24 @@ export class CategoryService implements ICategoryService {
         return category;
     }
 
+    async getCategoryByIdWithTags(id: string): Promise<CategoryData | null> {
+        Logger.info("Fetching category by ID", { categoryId: id });
+
+        const category = await this.categoryRepository.findCategoryWithTags(id);
+
+        if (!category) {
+            Logger.warn("Category not found", { categoryId: id });
+            return null;
+        }
+
+        Logger.info("Category retrieved successfully", {
+            categoryId: id,
+            categoryName: category.nameTh
+        });
+
+        return category;
+    }
+
 
 
     /**

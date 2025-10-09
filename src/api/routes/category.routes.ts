@@ -76,6 +76,32 @@ class CategoryRouter extends BaseRouter {
         path: "/:id/size-units",
         handler: this.categoryController.getBySizeUnit.bind(this.categoryController),
       },
+
+      {
+        /**
+         * @swagger
+         * /api/categories/{id}/tags:
+         *   get:
+         *     tags: [Category]
+         *     summary: Get category by ID
+         *     parameters:
+         *       - in: path
+         *         name: id
+         *         required: true
+         *         schema:
+         *           type: string
+         *         description: Category ID
+         *     responses:
+         *       200:
+         *         description: Successful operation
+         *       404:
+         *         description: Category not found
+         */
+        method: "get",
+        path: "/:id/tags",
+        handler: this.categoryController.getByTags.bind(this.categoryController),
+      },
+
       /**
        * @swagger
        * /api/categories/{id}/size-units/{sizeUnitId}:

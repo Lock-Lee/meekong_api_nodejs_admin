@@ -147,6 +147,27 @@ export class CategoryRepository implements ICategoryRepository {
         return category || null
     }
 
+    async findCategoryWithTags(id: string): Promise<CategoryData | null> {
+        const category = await this.prisma.category.findUnique({
+            include: {
+                tag: {
+                    select: {
+                        id: true,
+                        name: true,
+                        status: true,
+                        createdBy: true,
+                    }
+                }
+            },
+            where: {
+                id,
+                status: Status.ACTIVE
+            },
+        });
+        return category || null
+    }
+
+
 
     async findCategoryWithSizeUnitId(id: string, sizeUnitId: string): Promise<CategoryData | null> {
         const sizeUnit = await this.prisma.SizeUnit.findFirst({

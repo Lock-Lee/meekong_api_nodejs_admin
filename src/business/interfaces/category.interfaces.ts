@@ -61,6 +61,7 @@ export interface ICategoryRepository {
     findTopLevelCategories(): Promise<CategoryData[]>;
     findCategoryWithChildren(id: string): Promise<CategoryData | null>;
     findCategoryWithSizeUnit(id: string): Promise<CategoryData | null>;
+    findCategoryWithTags(id: string): Promise<CategoryData | null>;
     findCategoryWithSizeUnitId(id: string, sizeUnitId: string): Promise<CategoryData | null>;
 }
 
@@ -72,6 +73,7 @@ export interface ICategoryService {
     getAllCategories(): Promise<CategoryHierarchy[]>;
     getCategoryById(id: string): Promise<CategoryData | null>;
     getCategoryByIdWithSizeUnits(id: string): Promise<CategoryData | null>;
+    getCategoryByIdWithTags(id: string): Promise<CategoryData | null>;
     getCategoryByIdWithSizeUnitsId(id: string, sizeUnitId: string): Promise<CategoryData | null>;
     createCategory(request: CreateCategoryRequest): Promise<CategoryData>;
     createManyCategories(requests: CreateCategoryRequest[]): Promise<CategoryData[]>;
