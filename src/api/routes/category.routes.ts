@@ -31,6 +31,27 @@ class CategoryRouter extends BaseRouter {
       {
         /**
          * @swagger
+         * /api/categories/children/tree:
+         *   get:
+         *     tags: [Category]
+         *     summary: Get category children (with descendants)
+         *     parameters:
+         *       - in: query
+         *         name: parentId
+         *         required: false
+         *         schema: { type: string }
+         *         description:
+         *     responses:
+         *       200: { description: Successful operation }
+         */
+
+        method: "get",
+        path: "/children/tree",
+        handler: this.categoryController.getChildrenTreeByParentId.bind(this.categoryController),
+      },
+      {
+        /**
+         * @swagger
          * /api/categories/{id}:
          *   get:
          *     tags: [Category]
@@ -190,7 +211,7 @@ class CategoryRouter extends BaseRouter {
          *             properties:
          *               items:
          *                 type: string
-         *                 description: JSON string of CreateCategory[] (without imageUrl or with placeholders)
+         *                 description: JSON string of Category payloads; include "id" to update, omit to create
          *               images:
          *                 type: array
          *                 items:
@@ -278,6 +299,7 @@ class CategoryRouter extends BaseRouter {
         path: "/:id",
         handler: this.categoryController.delete.bind(this.categoryController),
       },
+
     ];
   }
 }

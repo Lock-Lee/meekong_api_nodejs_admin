@@ -2046,6 +2046,7 @@ enum ChatType {
   USER_SHOP // แชทระหว่าง User กับ Shop
   USER_ADMIN // แชทระหว่าง User กับ Admin
   SHOP_ADMIN // แชทระหว่าง Shop กับ Admin
+  SATISFY_CHAT
 }
 
 enum ChatStatus {

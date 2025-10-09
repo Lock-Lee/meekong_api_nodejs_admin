@@ -9,7 +9,7 @@ import {
     CategoryHierarchy,
     updateCategoryRequest
 } from "../interfaces/category.interfaces";
-import { ValidationError } from "../../shared/errors/business.errors";
+import { BusinessError, ValidationError } from "../../shared/errors/business.errors";
 import { Logger } from "../../shared/utils/logger";
 
 @injectable()
@@ -32,6 +32,35 @@ export class CategoryService implements ICategoryService {
         });
 
         return this.buildCategoryHierarchy(processedCategories);
+    }
+
+    async getAllCategoriesWithChildren(): Promise<CategoryHierarchy[]> {
+        Logger.info("Fetching all categories with hierarchy");
+
+        const categories = await this.categoryRepository.findTopLevelCategories();
+        const processedCategories = this.processCategories(categories);
+
+        Logger.info("Categories retrieved successfully", {
+            categoryCount: processedCategories.length
+        });
+
+        return this.buildCategoryHierarchy(processedCategories);
+    }
+    async getChildrenByParentId(parentId?: string): Promise<CategoryHierarchy[]> {
+        Logger.info("Fetching children with hierarchy", { parentId: parentId ?? null });
+
+        const raw = parentId
+            ? await this.categoryRepository.findChildrenTreeByParentId(parentId)
+            : await this.categoryRepository.findChildrenTreeByParentId(null);
+
+        const processed = this.processCategories(raw);
+
+        Logger.info("Children retrieved successfully", {
+            parentId: parentId ?? null,
+            count: processed.length,
+        });
+
+        return this.buildCategoryHierarchy(processed);
     }
 
     /**
@@ -201,6 +230,57 @@ export class CategoryService implements ICategoryService {
         return created;
     }
 
+    async upsertManyCategories(
+        requests: (CreateCategoryRequest & { id?: string })[]
+    ): Promise<CategoryData[]> {
+        // Precompute each item’s derived fields (parent, fullPath, isLeaf)
+        const work: Array<{
+            mode: "create" | "update";
+            id?: string;
+            data: Omit<CategoryData, "id" | "createdAt" | "updatedAt">;
+            parentId?: string | null; // for leaf bookkeeping
+            // extra for updates
+            oldParentId?: string | null;
+        }> = [];
+
+        for (const req of requests) {
+            this.validateCategoryRequest(req);
+
+            // If update, fetch current to know old parent and to validate existence
+            let oldParentId: string | null | undefined = undefined;
+            if (req.id) {
+                const existing = await this.categoryRepository.findCategoryById(req.id);
+                if (!existing) {
+                    throw new BusinessError(`Category not found: ${req.id}`, 404);
+                }
+                oldParentId = existing.parentId ?? null;
+            }
+
+            const parent = await this.validateCategoryHierarchy(req.parentId, req.level);
+            const fullPath = this.buildFullPath(parent, req.level);
+            const isLeaf = req.level === 4;
+
+            work.push({
+                mode: req.id ? "update" : "create",
+                id: req.id,
+                data: {
+                    nameTh: req.nameTh,
+                    nameEn: req.nameEn,
+                    imageUrl: req.imageUrl,
+                    level: req.level,
+                    parentId: req.parentId ?? undefined, // keep undefined over null if your types require it
+                    fullPath,
+                    isLeaf,
+                    status: Status.ACTIVE,
+                },
+                parentId: req.parentId ?? null,
+                oldParentId: oldParentId ?? null,
+            });
+        }
+
+        // hand off to repo for 1 transaction
+        return this.categoryRepository.upsertManyCategories(work);
+    }
     /**
    * Update a new category
    */

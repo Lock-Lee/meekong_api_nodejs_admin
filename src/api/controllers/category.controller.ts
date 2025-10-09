@@ -99,6 +99,35 @@ export class CategoryController {
     }
   }
 
+  async getChildrenTreeByParentId(req: Request, res: Response): Promise<void> {
+    try {
+
+      Logger.info("Fetching all categories", { requestId: req.id });
+      const parentId = (req.query.parentId as string) || "";
+      const categories = await this.categoryService.getChildrenByParentId(parentId);
+
+      Logger.info("Categories retrieved successfully", {
+        categoryCount: categories.length,
+        requestId: req.id
+      });
+
+      return Send.success(res, categories, "Categories fetched successfully.");
+    } catch (error) {
+      Logger.error("Failed to fetch categories", {
+        error: (error as Error).message,
+        requestId: req.id
+      });
+
+      if (error instanceof BusinessError) {
+        return Send.error(res, null, error.message, error.statusCode);
+      }
+
+      return Send.error(res, null, "Failed to fetch categories.");
+    }
+
+  }
+
+
   /**
    * Get category by ID with children
    */
@@ -407,6 +436,68 @@ export class CategoryController {
       return Send.error(res, null, "Failed to bulk create categories.");
     }
   }
+
+  async upsertMany(req: Request, res: Response): Promise<void> {
+    try {
+      const rawItems = Array.isArray(req.body)
+        ? req.body
+        : (req.body?.items ? JSON.parse(req.body.items) : []);
+
+      if (!Array.isArray(rawItems) || rawItems.length === 0) {
+        return Send.error(res, null, "Items must be a non-empty array.", 400);
+      }
+
+      const prepared = rawItems.map((it) => ({
+        ...it,
+        level: typeof it.level === "string" ? parseInt(it.level) : it.level,
+      }));
+
+      const failures: Array<{ index: number; errors: unknown }> = [];
+      const validItems: any[] = [];
+      for (let i = 0; i < prepared.length; i++) {
+        const it = prepared[i];
+        const r = it.id
+          ? categorySchema.updateCategory.safeParse(it) // <- ensure you have this; otherwise create a union that allows id
+          : categorySchema.createCategory.safeParse(it);
+
+        if (!r.success) failures.push({ index: i, errors: r.error.errors });
+        else validItems.push(r.data);
+      }
+
+      if (failures.length) {
+        Logger.warn("Invalid items in bulk category upsert", { failures, requestId: req.id });
+        return Send.error(res, failures, "Some items are invalid.");
+      }
+
+      const files = req.files?.images as UploadedFile | UploadedFile[] | undefined;
+      if (files) {
+        const fileArray = Array.isArray(files) ? files : [files];
+        for (let i = 0; i < validItems.length && i < fileArray.length; i++) {
+          const uploadResult = await this.uploadCategoryImage(fileArray[i]);
+          validItems[i].imageUrl = uploadResult.imageUrl;
+        }
+      }
+
+      Logger.info("Bulk upserting categories", { count: validItems.length, requestId: req.id });
+
+      const upserted = await this.categoryService.upsertManyCategories(validItems);
+
+      Logger.info("Bulk categories upserted", { count: upserted.length, requestId: req.id });
+
+      return Send.success(res, upserted, "Categories upserted successfully.");
+    } catch (error) {
+      Logger.error("Failed to bulk upsert categories", {
+        error: (error as Error).message,
+        requestId: req.id,
+      });
+
+      if (error instanceof BusinessError) {
+        return Send.error(res, null, error.message, error.statusCode);
+      }
+      return Send.error(res, null, "Failed to bulk upsert categories.");
+    }
+  }
+
 
   async update(req: Request, res: Response): Promise<void> {
     try {

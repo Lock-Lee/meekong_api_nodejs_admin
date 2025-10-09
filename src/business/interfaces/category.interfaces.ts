@@ -40,7 +40,13 @@ export interface CategoryHierarchy {
     fullPath: string[];
     children: CategoryHierarchy[];
 }
-
+export interface UpsertWorkItem {
+    mode: "create" | "update";
+    id?: string;
+    data: Omit<CategoryData, "id" | "createdAt" | "updatedAt">;
+    parentId?: string | null;
+    oldParentId?: string | null;
+}
 /**
  * Repository interface for category-related data operations
  */
@@ -54,6 +60,7 @@ export interface ICategoryRepository {
         data: Omit<CategoryData, 'id' | 'createdAt' | 'updatedAt'>;
         parentId?: string | null;
     }>): Promise<CategoryData[]>;
+    upsertManyCategories(items: UpsertWorkItem[]): Promise<CategoryData[]>;
     updateCategoryLeafStatus(categoryId: string, isLeaf: boolean): Promise<void>;
     updateCategory(id: string, request: updateCategoryRequest): Promise<CategoryData>;
     deleteCategory(id: string): Promise<CategoryData>;
@@ -61,6 +68,7 @@ export interface ICategoryRepository {
     findTopLevelCategories(): Promise<CategoryData[]>;
     findCategoryWithChildren(id: string): Promise<CategoryData | null>;
     findCategoryWithSizeUnit(id: string): Promise<CategoryData | null>;
+    findChildrenTreeByParentId(id: string | null): Promise<CategoryData[]>;
     findCategoryWithTags(id: string): Promise<CategoryData | null>;
     findCategoryWithSizeUnitId(id: string, sizeUnitId: string): Promise<CategoryData | null>;
 }
@@ -71,12 +79,15 @@ export interface ICategoryRepository {
 export interface ICategoryService {
     // Category operations
     getAllCategories(): Promise<CategoryHierarchy[]>;
+    getAllCategoriesWithChildren(): Promise<CategoryHierarchy[]>;
+    getChildrenByParentId(parentId?: string): Promise<CategoryHierarchy[]>;
     getCategoryById(id: string): Promise<CategoryData | null>;
     getCategoryByIdWithSizeUnits(id: string): Promise<CategoryData | null>;
     getCategoryByIdWithTags(id: string): Promise<CategoryData | null>;
     getCategoryByIdWithSizeUnitsId(id: string, sizeUnitId: string): Promise<CategoryData | null>;
     createCategory(request: CreateCategoryRequest): Promise<CategoryData>;
     createManyCategories(requests: CreateCategoryRequest[]): Promise<CategoryData[]>;
+    upsertManyCategories(requests: CreateCategoryRequest[]): Promise<CategoryData[]>;
     updateCategory(id: string, request: updateCategoryRequest): Promise<CategoryData>;
     deleteCategory(id: string): Promise<CategoryData>;
     // Business logic
