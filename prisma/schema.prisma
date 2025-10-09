@@ -332,6 +332,8 @@ model Category {
   items       Item[]
   rfqRequests RFQ[]
 
+  tag Tag[]
+
   @@index([parentId])
   @@index([level])
 }
@@ -378,14 +380,15 @@ model Brand {
 
 // Main Tag model
 model Tag {
-  id          String  @id @default(uuid())
-  name        String  @unique // เช่น "เสื้อยืดทรงสวย"
-  status      Status  @default(ACTIVE)
+  id          String     @id @default(uuid())
+  name        String     @unique // เช่น "เสื้อยืดทรงสวย"
+  status      Status     @default(ACTIVE)
   createdById String?
-  createdBy   User?   @relation("TagCreatedBy", fields: [createdById], references: [id])
-
-  tagLinks  TagLink[]
-  tagUsages TagUsage[]
+  createdBy   User?      @relation("TagCreatedBy", fields: [createdById], references: [id])
+  categoryId  String?
+  tagLinks    TagLink[]
+  tagUsages   TagUsage[]
+  Category    Category?  @relation(fields: [categoryId], references: [id])
 }
 
 // Link between Tag and target entities (items, brands, etc.)
