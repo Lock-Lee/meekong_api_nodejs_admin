@@ -7,6 +7,15 @@ export interface TagData {
     updatedAt: Date;
 }
 
+export type TagMasterData = {
+    id: string;
+    name: string;
+    createdById?: string | null;
+    categoryId?: string | null;
+    tagLinks: { id: string }[];
+    tagUsages: { id: string }[];
+};
+
 export interface TagLinkData {
     id: string;
     tagId: string;
@@ -29,14 +38,22 @@ export interface PopularTagResult {
     usageCount: number;
 }
 
+export interface CreateTagRequest {
+    name: string;
+    tagLinks?: { id: string }[];
+    TagUsage?: { id: string }[];
+}
+
 /**
  * Repository interface for tag-related data operations
  */
 export interface ITagRepository {
     // Tag operations
+    getAlltag(): Promise<TagData[] | null>;
     findTagByName(name: string): Promise<TagData | null>;
     findTagById(id: string): Promise<TagData | null>;
     createTag(name: string): Promise<TagData>;
+    createTagmaster(data: CreateTagRequest): Promise<TagMasterData>;
     findUnusedTags(): Promise<TagData[]>;
     deleteTagsByIds(tagIds: string[]): Promise<void>;
 
@@ -58,4 +75,13 @@ export interface ITagRepository {
 
     // Transaction support
     executeTransaction<T>(callback: (repository: ITagRepository) => Promise<T>): Promise<T>;
+}
+
+
+export interface ITagMasterService {
+    getAlltag(): Promise<TagMasterData[] | null>;
+    getTagById(id: string): Promise<TagMasterData | null>;
+
+    createTagMaster(request: CreateTagRequest): Promise<TagMasterData | null>;
+
 }

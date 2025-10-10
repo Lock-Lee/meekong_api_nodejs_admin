@@ -74,7 +74,7 @@ export class SellerShopController {
                 take = Number(rawTake);
             }
 
-     
+
 
             Logger.info("Fetching items by seller ID", { requestId: req.id, userId });
             // Sorting params

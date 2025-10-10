@@ -213,6 +213,7 @@ import { IshippingRepository, IshippingService } from "@business/interfaces/ship
 import { ShippingService } from "@business/services/shipping.service";
 import { ShippingRepository } from "@data/repositories/shipping.repository";
 import { ShippingController } from "@api/controllers/shipping.controller";
+import TagController from "@api/controllers/tags.controller";
 
 /**
  * Inversify Container Configuration
@@ -320,6 +321,7 @@ container.bind<AuthController>(TYPES.AuthController).to(AuthController);
 container.bind<BidController>(TYPES.BidController).to(BidController);
 container.bind<AuctionController>(TYPES.AuctionController).to(AuctionController);
 container.bind<CategoryController>(TYPES.CategoryController).to(CategoryController);
+container.bind<TagController>(TYPES.TagController).to(TagController);
 container.bind<ProfileController>(TYPES.ProfileController).to(ProfileController);
 container.bind<SatisfyController>(TYPES.SatisfyController).to(SatisfyController);
 container.bind<BuyerAddressController>(TYPES.BuyerAddressController).to(BuyerAddressController);

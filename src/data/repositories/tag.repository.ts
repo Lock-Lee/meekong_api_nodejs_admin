@@ -6,7 +6,9 @@ import {
     TagData,
     TagLinkData,
     TagUsageData,
-    PopularTagResult
+    PopularTagResult,
+    CreateTagRequest,
+    TagMasterData
 } from "../../business/interfaces/tag.interfaces";
 
 @injectable()
@@ -14,6 +16,36 @@ export class TagRepository implements ITagRepository {
     constructor(
         @inject(TYPES.PrismaClient) private prisma: any
     ) { }
+    async getAlltag(): Promise<TagData[] | null> {
+        const tag = await this.prisma.tag.findMany();
+        return tag || null
+    }
+    /**
+     * Create a new tag
+     */
+    async createTagmaster(data: CreateTagRequest): Promise<TagMasterData> {
+        const { name, tagLinks = [], TagUsage = [] } = data;
+
+
+        const tag = await this.prisma.tag.create({
+            data: {
+                name,
+                ...(tagLinks.length
+                    ? { tagLinks: { connect: tagLinks.map(t => ({ id: t.id })) } }
+                    : {}),
+                ...(TagUsage.length
+                    ? { tagUsages: { connect: TagUsage.map(u => ({ id: u.id })) } }
+                    : {}),
+            },
+            include: {
+                tagLinks: { select: { id: true } },
+                tagUsages: { select: { id: true } },
+            },
+        });
+
+        return this.mapToTagMasterData(tag);
+
+    }
 
     /**
      * Find tag by name
@@ -243,6 +275,18 @@ export class TagRepository implements ITagRepository {
             name: tag.name,
             createdAt: tag.createdAt,
             updatedAt: tag.updatedAt
+        };
+    }
+
+
+    private mapToTagMasterData(tag: any): TagMasterData {
+        return {
+            id: tag.id,
+            name: tag.name,
+            createdById: tag.createdById ?? null,
+            categoryId: tag.categoryId ?? null,
+            tagLinks: tag.tagLinks.map((l: { id: string }) => ({ id: l.id })),
+            tagUsages: tag.tagUsages.map((u: { id: string }) => ({ id: u.id })),
         };
     }
 

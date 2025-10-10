@@ -24,12 +24,14 @@ import UserNotificationRouter from "./userNotification.routes";
 import SellerShopRouter from "./sellerShop.routes";
 import chatRouter from "./chat.router";
 import shippingRouter from "./shipping.routes";
+import TagsRouter from "./tag.routes"
 
 const mainRouter = Router();
 
 mainRouter.use("/auth", authRouter);
 mainRouter.use("/item", itemRouter);
 mainRouter.use("/categories", categoryRouter);
+mainRouter.use("/tags", TagsRouter);
 mainRouter.use("/size-unit", sizeUnitRouter);
 mainRouter.use("/brand", brandRouter);
 mainRouter.use("/satisfy", satisfyRouter);

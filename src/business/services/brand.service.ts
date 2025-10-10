@@ -11,9 +11,12 @@ import {
     BrandData,
     CreateBrandRequest,
     BrandListResult,
-    UploadResult
+    UploadResult,
+    UpdateBrandRequest,
+    BulkUpsertItem,
+    BulkUpsertResult
 } from "../interfaces/brand.interfaces";
-import { ValidationError } from "../../shared/errors/business.errors";
+import { BusinessError, ValidationError } from "../../shared/errors/business.errors";
 import { Logger } from "../../shared/utils/logger";
 
 @injectable()
@@ -48,6 +51,31 @@ export class BrandService implements IBrandService {
             },
         };
     }
+
+    async getBrandsbyId(id: string): Promise<BrandData | null> {
+        Logger.info("Fetching brands");
+
+        const brands = await this.brandRepository.findById(id);
+
+        Logger.info("Brands retrieved successfully", {
+            brands
+        });
+
+        return brands
+    }
+
+    async deleteBrandsbyId(id: string): Promise<BrandData | null> {
+        Logger.info("Deleting brands");
+
+        const brands = await this.brandRepository.deleteBrand(id);
+
+        Logger.info("Brands delete successfully", {
+            brands
+        });
+
+        return brands
+    }
+
 
     /**
      * Create a new brand
@@ -91,7 +119,69 @@ export class BrandService implements IBrandService {
 
         return newBrand;
     }
+    async changeBrandImage(brandId: string, image: UploadedFile, actorId?: string): Promise<BrandData> {
+        const existing = await this.brandRepository.findById(brandId);
+        if (!existing) {
+            throw new BusinessError("Brand not found", 404);
+        }
 
+        // Upload file to your storage
+        const upload = await this.uploadBrandImage(image); // returns { imageUrl: string }
+
+        // Update brand record (imageUrl)
+        const updated = await this.brandRepository.updateBrand(brandId, {
+            imageUrl: upload.imageUrl,
+            ...(actorId ? { updatedById: actorId } as any : {}),
+        });
+
+        // Keep image history: make new one primary, demote old primaries
+        await this.brandRepository.setBrandImagesNonPrimary(brandId);
+        await this.brandRepository.createBrandImage(brandId, upload.imageUrl, actorId ?? existing.createdById);
+
+        return updated;
+    }
+
+    async deleteBrandImage(brandId: string, actorId?: string): Promise<BrandData> {
+        // 1) Ensure brand exists
+        const existing = await this.brandRepository.findById(brandId);
+        if (!existing) throw new BusinessError("Brand not found", 404);
+
+        // 2) Determine current image to remove
+        const currentUrl = existing.imageUrl;
+        if (!currentUrl) {
+            throw new BusinessError("No image to delete", 404);
+        }
+
+        // Try to find its image record (primary)
+        const primary = await this.brandRepository.findPrimaryBrandImage(brandId);
+
+        // 3) Clear image on brand
+        const updated = await this.brandRepository.updateBrand(brandId, {
+            imageUrl: null as any, // Prisma/DB should allow null for this column
+            ...(actorId ? { updatedById: actorId } as any : {}),
+        });
+
+        // 4) Remove image record (or at least mark non-primary)
+        if (primary) {
+            await this.brandRepository.deleteImageById(primary.id);
+        } else {
+            // Fallback: delete by URL if primary record not found
+            await this.brandRepository.deleteImagesByUrl(brandId, currentUrl);
+        }
+
+        // 5) (Optional) delete physical file if local
+        // Only do this if you know images are stored locally at /public/images/brands/*
+        try {
+            if (currentUrl.startsWith("/images/brands/")) {
+                const filePath = path.join(process.cwd(), "public", currentUrl);
+                await fs.unlink(filePath).catch(() => { });
+            }
+        } catch {
+            // ignore file deletion errors
+        }
+
+        return updated;
+    }
     /**
      * Upload brand image to filesystem
      */
@@ -124,6 +214,115 @@ export class BrandService implements IBrandService {
             filePath: uploadPath,
         };
     }
+
+    async updateBrand(id: string, request: UpdateBrandRequest): Promise<BrandData> {
+        const { nameTh, nameEn, updatedById, image } = request;
+
+        // Ensure the brand exists
+        const existing = await this.brandRepository.findById(id);
+        if (!existing) {
+            throw new BusinessError("Brand not found", 404);
+        }
+
+        // If names are provided (and changed), validate uniqueness (exclude self)
+        const nextNameTh = nameTh ?? existing.nameTh;
+        const nextNameEn = nameEn ?? existing.nameEn;
+        if (nextNameTh !== existing.nameTh || nextNameEn !== existing.nameEn) {
+            await this.validateBrandName(nextNameTh, nextNameEn); // excludeId support
+        }
+
+        // Optional image upload
+        let newImageUrl: string | undefined;
+        if (image) {
+            const uploadResult = await this.uploadBrandImage(image);
+            newImageUrl = uploadResult.imageUrl;
+        }
+
+        // Build update payload (only include provided fields)
+        const updateData: Partial<Omit<BrandData, "id" | "createdAt" | "updatedAt">> = {};
+        if (nameTh !== undefined) updateData.nameTh = nameTh;
+        if (nameEn !== undefined) updateData.nameEn = nameEn;
+        if (newImageUrl !== undefined) updateData.imageUrl = newImageUrl;
+        if (updatedById !== undefined) (updateData as any).updatedById = updatedById; // if your model has it
+
+        const updated = await this.brandRepository.updateBrand(id, updateData);
+
+        // Persist image record if a new image was uploaded
+        if (newImageUrl) {
+            // Optional: demote old primaries first (keeps image history clean)
+            await this.brandRepository.setBrandImagesNonPrimary(id);
+            await this.brandRepository.createBrandImage(id, newImageUrl, updatedById ?? existing.createdById);
+        }
+
+        return updated;
+    }
+
+    async bulkUpsertBrands(items: BulkUpsertItem[]): Promise<BulkUpsertResult> {
+        // Optional: quick client-side duplicate check within the payload itself
+        // to avoid obvious conflicts (same nameTh/nameEn appearing twice).
+        const comboKey = (nTh: string, nEn: string) => `${nTh}__${nEn}`.toLowerCase();
+        const seen = new Set<string>();
+        const duplicatesInPayload: number[] = [];
+        items.forEach((it, idx) => {
+            const key = comboKey(it.nameTh.trim(), it.nameEn.trim());
+            if (seen.has(key)) duplicatesInPayload.push(idx);
+            seen.add(key);
+        });
+
+        const result: BulkUpsertResult = { created: [], updated: [], errors: [] };
+
+        // If duplicates detected in the same payload, mark them as errors but continue others
+        for (const i of duplicatesInPayload) {
+            result.errors.push({ index: i, id: items[i].id, message: "Duplicate brand name in payload" });
+        }
+
+        // Process items (skip those flagged as duplicates above)
+        await this.brandRepository.transaction(async (txRepo) => {
+            for (let i = 0; i < items.length; i++) {
+                if (duplicatesInPayload.includes(i)) continue; // already errored
+                const it = items[i];
+
+                try {
+                    if (it.id) {
+                        // UPDATE
+                        const existing = await txRepo.findById(it.id);
+                        if (!existing) {
+                            result.errors.push({ index: i, id: it.id, message: "Brand not found" });
+                            continue;
+                        }
+                        // Uniqueness (exclude self)
+                        await this.validateBrandName(it.nameTh, it.nameEn);
+
+                        const updated = await txRepo.updateBrand(it.id, {
+                            nameTh: it.nameTh,
+                            nameEn: it.nameEn,
+                            ...(it.actorId ? { updatedById: it.actorId } as any : {}),
+                        });
+
+                        result.updated.push(updated);
+                    } else {
+                        // CREATE
+                        await this.validateBrandName(it.nameTh, it.nameEn);
+                        const created = await txRepo.createBrand({
+                            nameTh: it.nameTh,
+                            nameEn: it.nameEn,
+                            createdById: it.actorId,
+                            // optional imageUrl: undefined,
+                            status: Status.ACTIVE,
+                        });
+                        result.created.push(created);
+                    }
+                } catch (e: any) {
+                    // Collect per-item error but continue processing others
+                    const msg = e instanceof BusinessError ? e.message : (e?.message ?? "Unknown error");
+                    result.errors.push({ index: i, id: it.id, message: msg });
+                }
+            }
+        });
+
+        return result;
+    }
+
 
     /**
      * Validate brand name uniqueness

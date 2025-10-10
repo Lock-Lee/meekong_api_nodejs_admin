@@ -96,14 +96,14 @@ export interface ItemVariantUpdate {
   userId: string;
   nameTh?: string;
   nameEn?: string;
-  itemVariants?:itemVariantsUpdate[],
+  itemVariants?: itemVariantsUpdate[],
   itemAuction?: itemAuctionUpdate[],
 }
 
 export interface UpdateItemVariantRequest {
   nameTh?: string;
   nameEn?: string;
-  itemVariants?:itemVariantsUpdate[],
+  itemVariants?: itemVariantsUpdate[],
 }
 
 
@@ -119,11 +119,11 @@ export interface itemVariantUpdate {
 }
 
 export interface itemAuctionUpdate {
-    auctionId: string;
-    startPrice?: number;
-    buyNowPrice?: number;
-    startAt?: string;
-    endAt?: string;
+  auctionId: string;
+  startPrice?: number;
+  buyNowPrice?: number;
+  startAt?: string;
+  endAt?: string;
 }
 export interface UpdateVariantAuctionItemRequest {
   nameTh?: string;
@@ -152,7 +152,7 @@ export interface IItemService {
     data: UpdateVariantAuctionItemRequest,
     userId: string
   ): Promise<ItemVariantUpdate>;
-  deleteItem(id: string, userId: string ,status?: string): Promise<void>;
+  deleteItem(id: string, userId: string, status?: string): Promise<void>;
   getSearchSuggestions(query: string, limit?: number): Promise<string[]>;
 }
 

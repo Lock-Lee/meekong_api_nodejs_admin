@@ -2,7 +2,8 @@ import { injectable, inject } from "inversify";
 import { TYPES } from "../../shared/types/service.types";
 import { TagTargetType } from "../../../generated/prisma";
 import { ITagService } from "../interfaces/item.interfaces";
-import { ITagRepository, PopularTagResult } from "../interfaces/tag.interfaces";
+import { CreateTagRequest, ITagRepository, PopularTagResult, TagMasterData } from "../interfaces/tag.interfaces";
+import { Logger } from "@utils/logger";
 
 @injectable()
 export class TagService implements ITagService {
@@ -165,4 +166,52 @@ export class TagService implements ITagService {
       await this.tagRepository.deleteTagsByIds(tagIds);
     }
   }
+
+
+  /**
+   * Create a new tag
+   */
+  async createTagMaster(request: CreateTagRequest): Promise<TagMasterData> {
+    const { name, tagLinks = [], TagUsage = [] } = request;
+
+    Logger.info("Creating new tag", { name, tagLinksCount: tagLinks.length, tagUsageCount: TagUsage.length });
+
+    this.validateCreateTagRequest(request);
+
+    const existing = await this.tagRepository.findTagByName(name);
+    if (existing) {
+      throw new Error(`Tag name "${name}" already exists`);
+    }
+    const tagData = {
+      name,
+      tagLinks,
+      TagUsage,
+    };
+
+    const newtag = await this.tagRepository.createTagmaster(tagData);
+
+    Logger.info("Tag created successfully", { tagId: newtag.id, name: newtag.name });
+    return newtag;
+  }
+
+  private validateCreateTagRequest(request: CreateTagRequest) {
+    if (!request.name || request.name.trim().length === 0) {
+      throw new Error("Tag name is required");
+    }
+    if (request.tagLinks) {
+      for (const l of request.tagLinks) {
+        if (!l?.id) throw new Error("Each tagLinks item must include an id");
+        // if needed: if (!isUuid(l.id)) throw new Error("Invalid TagLink id format");
+      }
+    }
+
+    if (request.TagUsage) {
+      for (const u of request.TagUsage) {
+        if (!u?.id) throw new Error("Each TagUsage item must include an id");
+        // if needed: if (!isUuid(u.id)) throw new Error("Invalid TagUsage id format");
+      }
+    }
+  }
+
+
 }

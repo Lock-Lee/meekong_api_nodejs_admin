@@ -100,6 +100,7 @@ export const TYPES = {
     AuthController: Symbol.for('AuthController'),
     BidController: Symbol.for('BidController'),
     CategoryController: Symbol.for('CategoryController'),
+    TagController: Symbol.for('TagController'),
     ProfileController: Symbol.for('ProfileController'),
     SatisfyController: Symbol.for('SatisfyController'),
     AuctionController: Symbol.for('AuctionController'),
