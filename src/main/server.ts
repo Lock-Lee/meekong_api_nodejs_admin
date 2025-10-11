@@ -3,6 +3,7 @@ import "dotenv/config";
 import App from "./app";
 import { startMediaWorker } from "../workers/media.worker";
 import { Logger } from "../shared/utils/logger";
+import { startJobs } from "../jobs";
 
 // Global error handlers
 process.on('uncaughtException', (error: Error) => {
@@ -23,4 +24,9 @@ app.start();
 
 if (process.env.ENABLE_WORKERS === "true") {
     startMediaWorker();
+}
+
+if (process.env.ENABLE_JOBS === "true") {
+    Logger.info("Starting background jobs (ENABLE_JOBS=true)");
+    startJobs();
 }

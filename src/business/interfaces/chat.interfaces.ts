@@ -48,9 +48,9 @@ export interface IChatService {
 
     uploadChatImage(image: UploadedFile): Promise<ChatImageUploadResult>;
 
-    getConversations(userId: string): Promise<ChatConversation[]>;
+    getConversations(userId: string, keyword?: string): Promise<ChatConversation[]>;
 
-    getConversationsForShop(shopId: string): Promise<ChatConversation[]>;
+    getConversationsForShop(shopId: string, keyword?: string): Promise<ChatConversation[]>;
 
     getMessages(conversationId: string): Promise<ChatMessageWithReply[]>;
 
@@ -72,9 +72,9 @@ export interface IChatRepository {
 
     sendReply(data: SendMessageData): Promise<ChatMessage>;
 
-    getConversations(userId: string): Promise<ChatConversation[]>;
+    getConversations(userId: string, keyword?: string): Promise<ChatConversation[]>;
 
-    getConversationsForShop(shopId: string): Promise<ChatConversation[]>;
+    getConversationsForShop(shopId: string, keyword?: string): Promise<ChatConversation[]>;
 
     getMessages(conversationId: string): Promise<ChatMessageWithReply[]>;
 

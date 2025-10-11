@@ -84,8 +84,8 @@ export class ProfileService implements IProfileService {
         const profileUpdateData: any = {};
         if (request.firstName) profileUpdateData.firstName = request.firstName;
         if (request.lastName) profileUpdateData.lastName = request.lastName;
-        if (request.sex) profileUpdateData.gender = request.sex;
-        if (request.birthdate) profileUpdateData.birthDate = new Date(request.birthdate);
+        if (request.gender) profileUpdateData.gender = request.gender; // แก้จาก sex เป็น gender
+        if (request.birthDate) profileUpdateData.birthDate = new Date(request.birthDate); // แก้จาก birthdate เป็น birthDate
         if (imageUrl) profileUpdateData.avatarUrl = imageUrl;
 
         if (Object.keys(profileUpdateData).length > 0) {
@@ -155,8 +155,8 @@ export class ProfileService implements IProfileService {
             throw new ValidationError("Invalid email format");
         }
 
-        if (data.birthdate && !this.isValidDate(data.birthdate)) {
-            throw new ValidationError("Invalid birthdate format");
+        if (data.birthDate && !this.isValidDate(data.birthDate)) {
+            throw new ValidationError("Invalid birthDate format");
         }
     }
 

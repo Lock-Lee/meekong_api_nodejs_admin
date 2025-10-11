@@ -15,6 +15,12 @@ export class OTPService implements IOTPService {
         return this.OTPRepository.verifyOTPSMS(token, pin);
     }
 
+    requestOTPEmail(userId: string, email: string): Promise<getSMSOTPDataResult> {
+        return this.OTPRepository.requestOTPEmail(userId, email);
+    }
 
+    verifyOTPEmail(token: string, pin: string): Promise<verifySMSOTPSMSDataResult> {
+        return this.OTPRepository.verifyOTPEmail(token, pin);
+    }
 
 }

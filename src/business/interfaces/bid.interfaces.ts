@@ -4,6 +4,7 @@ export interface BidData {
     userId: string;
     amount: number;
     bidAt: Date;
+    chargeId?: string;  // Omise charge ID for payment
     user?: {
         id: string;
         profile?: {
@@ -12,6 +13,9 @@ export interface BidData {
             avatarUrl?: string;
         };
     };
+    // Auction payment status
+    statusAuction?: 'WAITING_TO_PAID' | 'PAID' | 'EXPIRED_PAID' | 'CANCELED_PAID';
+    paymentExpireAt?: Date | null;
 }
 
 export interface AuctionData {
@@ -28,6 +32,7 @@ export interface CreateBidRequest {
     auctionId: string;
     userId: string;
     amount: number;
+    cardToken?: string;  // Card token for payment
 }
 
 export interface CreateBidResult {
@@ -51,6 +56,9 @@ export interface BidRankingItem {
         lastName?: string;
         imageUser?: string;
     };
+    // Auction payment status
+    statusAuction?: 'WAITING_TO_PAID' | 'PAID' | 'EXPIRED_PAID' | 'CANCELED_PAID';
+    paymentExpireAt?: Date | null;
 }
 
 /**
@@ -60,7 +68,9 @@ export interface IBidRepository {
     // Bid operations
     findBidsByAuction(auctionId: string): Promise<BidData[]>;
     findBidsByAuctionOrderedByAmount(auctionId: string): Promise<BidData[]>;
+    findBidById(bidId: string): Promise<BidData | null>;
     createBid(data: Omit<BidData, 'id' | 'bidAt' | 'user'>): Promise<BidData>;
+    deleteBid(bidId: string): Promise<void>;
 
     // Auction operations
     findAuctionById(auctionId: string): Promise<AuctionData | null>;
@@ -78,6 +88,7 @@ export interface IBidService {
     getBidsByAuction(auctionId: string): Promise<BidData[]>;
     createBid(request: CreateBidRequest): Promise<CreateBidResult>;
     getBidRankingByAuction(auctionId: string): Promise<BidRankingItem[]>;
+    cancelBid(bidId: string, userId: string): Promise<void>;
 
     // Business logic
     validateBidAmount(auctionId: string, amount: number): Promise<void>;

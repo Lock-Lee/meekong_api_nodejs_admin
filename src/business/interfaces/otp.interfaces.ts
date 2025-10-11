@@ -9,6 +9,7 @@ export interface getSMSOTPDataResult {
 export interface verifySMSOTPSMSDataResult {
     status: string,
     message: string,
+    userId?: string, // For email OTP verification
 }
 
 
@@ -16,13 +17,13 @@ export interface verifySMSOTPSMSDataResult {
 export interface IOTPRepository {
     requestOTPSMS(msisdn: string): Promise<getSMSOTPDataResult>;
     verifyOTPSMS(token: string, pin: string): Promise<verifySMSOTPSMSDataResult>;
-    // requestOTPEmail(email: string): Promise<getSMSOTPDataResult>;
-    // verifyOTPEmail(token: string, code: string): Promise<verifySMSOTPSMSDataResult>;
+    requestOTPEmail(userId: string, email: string): Promise<getSMSOTPDataResult>;
+    verifyOTPEmail(token: string, pin: string): Promise<verifySMSOTPSMSDataResult>;
 }
 
 export interface IOTPService {
     requestOTPSMS(msisdn: string): Promise<getSMSOTPDataResult>;
     verifyOTPSMS(token: string, pin: string): Promise<verifySMSOTPSMSDataResult>;
-    // requestOTPEmail(email: string): Promise<getSMSOTPDataResult>;
-    // verifyOTPEmail(token: string, code: string): Promise<verifySMSOTPSMSDataResult>;
+    requestOTPEmail(userId: string, email: string): Promise<getSMSOTPDataResult>;
+    verifyOTPEmail(token: string, pin: string): Promise<verifySMSOTPSMSDataResult>;
 }

@@ -187,6 +187,152 @@ class AuthRouter extends BaseRouter {
         ],
         handler: this.authController.refreshToken.bind(this.authController),
       },
+      {
+        /**
+         * @swagger
+         * /api/auth/google:
+         *   post:
+         *     tags: [Auth]
+         *     summary: Login with Google
+         *     requestBody:
+         *       required: true
+         *       content:
+         *         application/json:
+         *           schema:
+         *             type: object
+         *             properties:
+         *               accessToken:
+         *                 type: string
+         *               firebaseToken:
+         *                 type: string
+         *               deviceInfo:
+         *                 type: object
+         *     responses:
+         *       200:
+         *         description: Successful login
+         */
+        method: "post",
+        path: "/google",
+        // @ts-ignore
+        middlewares: [ValidationMiddleware.validateBody(authSchema.socialAuth)],
+        handler: this.authController.loginWithGoogle.bind(this.authController),
+      },
+      {
+        /**
+         * @swagger
+         * /api/auth/facebook:
+         *   post:
+         *     tags: [Auth]
+         *     summary: Login with Facebook
+         *     requestBody:
+         *       required: true
+         *       content:
+         *         application/json:
+         *           schema:
+         *             type: object
+         *             properties:
+         *               accessToken:
+         *                 type: string
+         *               firebaseToken:
+         *                 type: string
+         *               deviceInfo:
+         *                 type: object
+         *     responses:
+         *       200:
+         *         description: Successful login
+         */
+        method: "post",
+        path: "/facebook",
+        // @ts-ignore
+        middlewares: [ValidationMiddleware.validateBody(authSchema.socialAuth)],
+        handler: this.authController.loginWithFacebook.bind(this.authController),
+      },
+      {
+        /**
+         * @swagger
+         * /api/auth/line:
+         *   post:
+         *     tags: [Auth]
+         *     summary: Login with LINE
+         *     requestBody:
+         *       required: true
+         *       content:
+         *         application/json:
+         *           schema:
+         *             type: object
+         *             properties:
+         *               accessToken:
+         *                 type: string
+         *               firebaseToken:
+         *                 type: string
+         *               deviceInfo:
+         *                 type: object
+         *     responses:
+         *       200:
+         *         description: Successful login
+         */
+        method: "post",
+        path: "/line",
+        // @ts-ignore
+        middlewares: [ValidationMiddleware.validateBody(authSchema.socialAuth)],
+        handler: this.authController.loginWithLine.bind(this.authController),
+      },
+      {
+        /**
+         * @swagger
+         * /api/auth/forget:
+         *   post:
+         *     tags: [Auth]
+         *     summary: Forgot password
+         *     requestBody:
+         *       required: true
+         *       content:
+         *         application/json:
+         *           schema:
+         *             type: object
+         *             properties:
+         *               email:
+         *                 type: string
+         *     responses:
+         *       200:
+         *         description: Password reset email sent
+         */
+        method: "post",
+        path: "/forget",
+        // @ts-ignore
+        middlewares: [ValidationMiddleware.validateBody(authSchema.forgotPassword)],
+        handler: this.authController.forgotPassword.bind(this.authController),
+      },
+      {
+        /**
+         * @swagger
+         * /api/auth/reset-password:
+         *   post:
+         *     tags: [Auth]
+         *     summary: Reset password
+         *     requestBody:
+         *       required: true
+         *       content:
+         *         application/json:
+         *           schema:
+         *             type: object
+         *             properties:
+         *               token:
+         *                 type: string
+         *               newPassword:
+         *                 type: string
+         *               confirmPassword:
+         *                 type: string
+         *     responses:
+         *       200:
+         *         description: Password reset successfully
+         */
+        method: "post",
+        path: "/reset-password",
+        // @ts-ignore
+        middlewares: [ValidationMiddleware.validateBody(authSchema.resetPassword)],
+        handler: this.authController.resetPassword.bind(this.authController),
+      },
     ];
   }
 }

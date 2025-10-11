@@ -17,6 +17,7 @@ export const TYPES = {
     CartRepository: Symbol.for('CartRepository'),
     CategoryRepository: Symbol.for('CategoryRepository'),
     ProfileRepository: Symbol.for('ProfileRepository'),
+    ShopRepository: Symbol.for('ShopRepository'),
     SatisfyRepository: Symbol.for('SatisfyRepository'),
     AuctionParticipantRepository: Symbol.for('AuctionParticipantRepository'),
     BuyerAddressRepository: Symbol.for('BuyerAddressRepository'),
@@ -37,6 +38,7 @@ export const TYPES = {
     OTPRepository: Symbol.for('OTPRepository'),
     ChatRepository: Symbol.for('ChatRepository'),
     ShippingRepository: Symbol.for('ShippingRepository'),
+    RFQRepository: Symbol.for('RFQRepository'),
 
     // Business Services
     ItemService: Symbol.for('ItemService'),
@@ -50,6 +52,7 @@ export const TYPES = {
     CartService: Symbol.for('CartService'),
     CategoryService: Symbol.for('CategoryService'),
     ProfileService: Symbol.for('ProfileService'),
+    ShopService: Symbol.for('ShopService'),
     SatisfyService: Symbol.for('SatisfyService'),
     AuctionParticipantService: Symbol.for('AuctionParticipantService'),
     BuyerAddressService: Symbol.for('BuyerAddressService'),
@@ -77,6 +80,7 @@ export const TYPES = {
     ChatService: Symbol.for('ChatService'),
     SocketService: Symbol.for('SocketService'),
     ShippingService: Symbol.for('ShippingService'),
+    RFQService: Symbol.for('RFQService'),
 
     // External Services
     EmailService: Symbol.for('EmailService'),
@@ -102,6 +106,7 @@ export const TYPES = {
     CategoryController: Symbol.for('CategoryController'),
     TagController: Symbol.for('TagController'),
     ProfileController: Symbol.for('ProfileController'),
+    ShopController: Symbol.for('ShopController'),
     SatisfyController: Symbol.for('SatisfyController'),
     AuctionController: Symbol.for('AuctionController'),
     BuyerAddressController: Symbol.for('BuyerAddressController'),
@@ -122,4 +127,5 @@ export const TYPES = {
     ChatController: Symbol.for('ChatController'),
     ShippingController: Symbol.for('ShippingController'),
     BuyerCheckoutController: Symbol.for('BuyerCheckoutController'),
+    RFQController: Symbol.for('RFQController'),
 } as const;

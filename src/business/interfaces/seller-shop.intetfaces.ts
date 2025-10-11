@@ -12,9 +12,19 @@ export interface SearchItemWithImagesResult extends SearchItemResult {
       imageUrl: string;
       isPrimary: boolean;
     }[];
-    auction: (SearchItemResult["auction"] & { hasUserBid?: boolean }) | null;
-
-    
+    auction: (SearchItemResult["auction"] & { 
+      hasUserBid?: boolean;
+      buyer?: {
+        id: string;
+        profile?: {
+          firstName?: string;
+          lastName?: string;
+          avatarUrl?: string;
+        };
+      };
+      statusAuction?: 'WAITING_TO_PAID' | 'PAID' | 'EXPIRED_PAID' | 'CANCELED_PAID';
+      paymentExpireAt?: Date | null;
+    }) | null;
   }
   
  

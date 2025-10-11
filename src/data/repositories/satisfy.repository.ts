@@ -138,7 +138,7 @@ export class SatisfyRepository implements ISatisfyRepository {
     pageSize: number,
     itemId?: string,
     status?: OfferStatus,
-    statusFilter?: string
+    statusFilter?: 'PENDING' | 'WAITING_TO_PAY'  | 'END' | 'COMPLETED'
   ): Promise<{
     satisfies: SatisfyDataAll[];
     total: number;
@@ -146,196 +146,131 @@ export class SatisfyRepository implements ISatisfyRepository {
     countWaitingToPay: number;
     countCompleted: number;
   }> {
-    const skip = (page - 1) * pageSize;
-
-    const where: any = {};
-    if (itemId) {
-      where.itemId = itemId;
+    const skip = Math.max(0, (page - 1) * pageSize);
+    const paidStatuses = [OrderStatus.PAID, OrderStatus.COMPLETED, OrderStatus.SHIPPED];
+    let paidBuyerIds: Set<string> | null = null;
+  
+    // 1) ดึงด้วยเงื่อนไข "คงที่" เท่านั้น (ไม่เอา statusFilter ไปปน)
+    const baseWhere: any = {};
+    if (itemId) baseWhere.itemId = itemId;
+    // Avoid invalid enum value e.g. "COMPLETED" (not in OfferStatus). Also ignore when filtering COMPLETED tab.
+    if (status && statusFilter !== 'COMPLETED') {
+      const validStatuses = Object.values(OfferStatus) as unknown as string[];
+      if (validStatuses.includes(status as unknown as string)) {
+        baseWhere.status = status as OfferStatus;
+      }
     }
-    if (status) {
-      where.status = status;
+  
+    // Map tab names accidentally sent via `status` into `statusFilter`
+    const tabNames = new Set(['PENDING', 'WAITING_TO_PAY', 'END', 'COMPLETED']);
+    const statusStr = (status as unknown as string | undefined)?.toUpperCase?.();
+    if (!statusFilter && statusStr && tabNames.has(statusStr)) {
+      statusFilter = statusStr as any;
+      status = undefined;
     }
 
-    let whereStatus: any = {};
-
-    if (statusFilter === 'WAITING_TO_PAY') {
-      whereStatus.status = OrderStatus.PENDING;
-    }
-
-    if (statusFilter === 'COMPLETED') {
-      whereStatus.status = { not: OrderStatus.PENDING };
-    }
-
-    const orderItemsWhere = whereStatus.status
-      ? { order: { status: whereStatus.status } }
-      : undefined;
-
-    const satisfyWhere = (statusFilter === 'PENDING')
-      ? {
-        ...where,
-        item: {
-          is: {
-            orderItems: {
-              none: {},
-            },
+    const rows = await prisma.satisfy.findMany({
+      where: baseWhere,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        buyer: {
+          select: {
+            id: true,
+            profile: { select: { firstName: true, lastName: true, avatarUrl: true } },
           },
         },
-      }
-      : (whereStatus.status
-        ? {
-          ...where,
-          item: {
-            is: {
-              orderItems: {
-                some: {
-                  order: {
-                    is: { status: whereStatus.status },
-                  },
-                },
-              },
-            },
-          },
-        }
-        : where);
-
-        // Build base where for counts (independent from current statusFilter)
-        const baseWhereForCounts = { ...where } as any;
-
-        const [satisfies, total, countPending, countWaitingToPay, countCompleted] = await Promise.all([
-          prisma.satisfy.findMany({
-            where: satisfyWhere,
-            orderBy: { createdAt: "desc" },
-            skip,
-            take: pageSize,
-            include: {
-              item: {
-                include: {
-                  orderItems: (
-                    orderItemsWhere
-                      ? { where: orderItemsWhere, include: { order: true } }
-                      : { include: { order: true } }
-                  ) as any,
-                },
-              },
-              buyer: {
-                select: {
-                  id: true,
-                  profile: { select: { firstName: true, lastName: true, avatarUrl: true } },
-                },
-              },
-            },
-          }),
-
-
-          
-          prisma.satisfy.count({ where: satisfyWhere }),
-          // Pending: no orderItems
-          prisma.satisfy.count({
-            where: {
-              ...baseWhereForCounts,
-              item: { is: { orderItems: { none: {} } } },
-            },
-          }),
-          // Waiting to pay: has order with status PENDING
-          prisma.satisfy.count({
-            where: {
-              ...baseWhereForCounts,
-              item: {
-                is: {
-                  orderItems: {
-                    some: { order: { is: { status: OrderStatus.PENDING } } },
-                  },
-                },
-              },
-            },
-          }),
-          // Completed: has order with status not PENDING
-          prisma.satisfy.count({
-            where: {
-              ...baseWhereForCounts,
-              item: {
-                is: {
-                  orderItems: {
-                    some: { order: { is: { status: { not: OrderStatus.PENDING } } } },
-                  },
-                },
-              },
-            },
-          }),
-        ]);
-        
-    // Special handling for PENDING: group by buyerId and take latest per buyer, paginate after grouping
-    if (statusFilter === 'PENDING') {
-      const allPending = await prisma.satisfy.findMany({
-        where: satisfyWhere,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          item: {
-            include: {
-              orderItems: (
-                orderItemsWhere
-                  ? { where: orderItemsWhere, include: { order: true } }
-                  : { include: { order: true } }
-              ) as any,
-            },
-          },
-          buyer: {
-            select: {
-              id: true,
-              profile: { select: { firstName: true, lastName: true, avatarUrl: true } },
-            },
-          },
-        },
-      });
-
-      const seenBuyer = new Set<string>();
-      const latestPerBuyer: any[] = [];
-      for (const s of allPending) {
-        if (!seenBuyer.has(s.buyerId)) {
-          seenBuyer.add(s.buyerId);
-          latestPerBuyer.push(s);
-        }
-      }
-
-      const totalUnique = latestPerBuyer.length;
-      const start = skip;
-      const end = skip + pageSize;
-      const pagedGrouped = latestPerBuyer.slice(start, end);
-
-      const nowPending = new Date();
-      const itemsPending: SatisfyDataAll[] = pagedGrouped.map((s) => {
-        const mapped = this.mapToSatisfyData(s);
-        const isPaid = Number((s as any).totalAmount ?? 0) > 0;
-        const isExpired = s.expireAt ? new Date(s.expireAt) < nowPending : false;
-        return { ...mapped, isPaid, isExpired } as SatisfyDataAll;
-      });
-
-      return {
-        satisfies: itemsPending,
-        total: totalUnique,
-        countPending:totalUnique,
-        countWaitingToPay,
-        countCompleted,
-      };
-    }
-
-    // Default mapping for other filters
-    const now = new Date();
-    const items: SatisfyDataAll[] = satisfies.map((s) => {
-      const mapped = this.mapToSatisfyData(s);
-      const isPaid = Number((s as any).totalAmount ?? 0) > 0;
-      const isExpired = s.expireAt ? new Date(s.expireAt) < now : false;
-      return { ...mapped, isPaid, isExpired } as SatisfyDataAll;
+      },
     });
+  
+    // 2) เลือกเรคอร์ด "ล่าสุดต่อ buyer" (จากลิสต์ที่เรียง desc แล้ว)
+    const seen = new Set<string>();
+    const latestPerBuyer: typeof rows = [];
+    for (const r of rows) {
+      if (!seen.has(r.buyerId)) {
+        seen.add(r.buyerId);
+        latestPerBuyer.push(r);
+      }
+    }
+  
+    // 3) ชุดสถานะ
+    const pendingSet   = new Set<OfferStatus>([OfferStatus.OPEN, OfferStatus.NONE, OfferStatus.ADJUST]);
+    const waitingSet   = new Set<OfferStatus>([OfferStatus.ACCEPTED]);
+    const endSet = new Set<OfferStatus>([OfferStatus.EXPIRED, OfferStatus.REJECT, OfferStatus.CANCELED , OfferStatus.EXPIRED_PAID]);
+    const completedSet = new Set<OfferStatus>([OfferStatus.ACCEPTED, OfferStatus.EXPIRED_PAID]);
+  
+    // 4) ตัวนับ "ตลอดเวลา" (ไม่อิง statusFilter) — คิดจาก latestPerBuyer
+    const countersAll = latestPerBuyer.reduce(
+      (acc, r) => {
+        if (pendingSet.has(r.status)) acc.countPending++;
+        else if (waitingSet.has(r.status)) acc.countWaitingToPay++;
+        else if (endSet.has(r.status)) acc.countCompleted++;
+        return acc;
+      },
+      { countPending: 0, countWaitingToPay: 0, countCompleted: 0 }
+    );
+  
+    // 5) ทำรายการตามแท็บที่กำลังดู (เฉพาะสำหรับ items + total)
+    let filtered = latestPerBuyer;
+    if (statusFilter === 'PENDING') {
+      filtered = latestPerBuyer.filter(g => pendingSet.has(g.status));
+    } else if (statusFilter === 'WAITING_TO_PAY') {
+      filtered = latestPerBuyer.filter(g => waitingSet.has(g.status));
+    } else if (statusFilter === 'END') {
+      filtered = latestPerBuyer.filter(g => endSet.has(g.status));
+    } else if (statusFilter === 'COMPLETED') {
+      // COMPLETED: เฉพาะสถานะใน completedSet และเอาผู้ที่มีคำสั่งซื้อสถานะจ่ายเงินแล้วขึ้นก่อน
+      const completedOnly = latestPerBuyer.filter(g => completedSet.has(g.status));
 
+      // หา buyer ที่มี order จ่ายเงินแล้วสำหรับ item นี้
+      const paidList: typeof completedOnly = [];
+      for (const r of completedOnly) {
+        const targetItemId = r.itemId;
+        if (!targetItemId) continue;
+        const hasPaid = await prisma.orderItem.findFirst({
+          where: {
+            itemId: targetItemId,
+            order: { status: { in: paidStatuses }, buyerId: r.buyerId },
+          },
+          select: { id: true },
+        });
+        if (hasPaid) paidList.push(r);
+      }
+
+      // จัดอันดับ: Paid ก่อน แล้วตามด้วยที่เหลือ (completed แต่ยังไม่พบการจ่าย) โดยเรียงตาม createdAt ล่าสุดก่อน
+      const paidBuyers = new Set(paidList.map(p => p.buyerId));
+      paidBuyerIds = paidBuyers;
+
+      const notPaid = completedOnly.filter(r => !paidBuyers.has(r.buyerId));
+      paidList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      notPaid.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      filtered = [...paidList, ...notPaid];
+    }
+  
+    // 6) paginate
+    const paged = filtered.slice(skip, skip + pageSize);
+  
+    const now = new Date();
+    const items: SatisfyDataAll[] = paged.map(s => {
+      const mapped = this.mapToSatisfyData(s);
+      const isExpired = s.expireAt ? new Date(s.expireAt) < now : false;
+      const isWinner = paidBuyerIds ? paidBuyerIds.has(s.buyerId) : false;
+      return {
+        ...mapped,
+        isExpired,
+        isWinner,
+      } as SatisfyDataAll;
+    });
+  
     return {
       satisfies: items,
-      total: total,
-      countPending,
-      countWaitingToPay,
-      countCompleted,
+      total: filtered.length,                    // รวมของแท็บปัจจุบัน
+      countPending: countersAll.countPending,    // "นับตลอดเวลา"
+      countWaitingToPay: countersAll.countWaitingToPay,
+      countCompleted: countersAll.countCompleted,
     };
   }
+
 
 
   
@@ -447,6 +382,11 @@ export class SatisfyRepository implements ISatisfyRepository {
   ): Promise<SatisfyData> {
     console.log(data);
 
+
+    //  48 minute 
+    const expireAtMinute = new Date(Date.now() + 60 * 1000);
+    expireAtMinute.setSeconds(0, 0);
+
     const newSatisfyItem = await prisma.satisfy.create({
       data: {
         itemId: data.itemId,
@@ -454,19 +394,11 @@ export class SatisfyRepository implements ISatisfyRepository {
         buyerId: data.buyerId,
         sellerId: data.sellerId,
         agreedPrice: data.agreedPrice,
+        expireAt: expireAtMinute,
         status: data.status,
       },
     });
-    // const satisfy = await prisma.satisfy.create({
-    //   data: {
-    //     itemId: data.itemId,
-    //     variantId: data.variantId,
-    //     buyerId: data.buyerId,
-    //     sellerId: data.sellerId,
-    //     agreedPrice: data.agreedPrice,
-    //     status: data.status,
-    //   },
-    // });
+
 
     return this.mapToSatisfyData(newSatisfyItem);
   }

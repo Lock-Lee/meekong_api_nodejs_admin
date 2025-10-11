@@ -27,6 +27,9 @@ import { ICategoryService, ICategoryRepository } from "../business/interfaces/ca
 // Profile Interfaces
 import { IProfileService, IProfileRepository } from "../business/interfaces/profile.interfaces";
 
+// Shop Interfaces
+import { IShopService, IShopRepository } from "../business/interfaces/shop.interfaces";
+
 // Auction Interfaces
 import { IAuctionService, IAuctionRepository } from "../business/interfaces/auction.interfaces";
 
@@ -82,6 +85,10 @@ import { CategoryRepository } from "../data/repositories/category.repository";
 // Profile Implementations
 import { ProfileService } from "../business/services/profile.service";
 import { ProfileRepository } from "../data/repositories/profile.repository";
+
+// Shop Implementations
+import { ShopService } from "../business/services/shop.service";
+import { ShopRepository } from "../data/repositories/shop.repository";
 
 // AuctionParticipant Implementations
 import { AuctionParticipantService } from "../business/services/auction-participant.service";
@@ -142,6 +149,7 @@ import { BidController } from "../api/controllers/bid.controller";
 import { AuctionController } from "../api/controllers/auction.controller";
 import { CategoryController } from "../api/controllers/category.controller";
 import { ProfileController } from "../api/controllers/profile.controller";
+import { ShopController } from "../api/controllers/shop.controller";
 import { SatisfyController } from "../api/controllers/satisfy.controller";
 import { BuyerAddressController } from "../api/controllers/buyerAddress.controller";
 import { BuyerReviewController } from "../api/controllers/buyerReview.controller";
@@ -196,8 +204,15 @@ import { BuyerCheckoutRepository } from "@data/repositories/buyer-checkout.repos
 // Chat Interfaces
 import { IChatRepository, IChatService } from '@business/interfaces/chat.interfaces';
 
+// RFQ Interfaces
+import { IRFQService, IRFQRepository } from '../business/interfaces/rfq.interfaces';
+
 // Chat Implementations
 import { ChatService } from '@business/services/chat.service';
+
+// RFQ Implementations
+import { RFQService } from '../business/services/rfq.service';
+import { RFQRepository } from '../data/repositories/rfq.repository';
 
 // Controllers
 import { ChatController } from '@api/controllers/chat.controller';
@@ -214,6 +229,7 @@ import { ShippingService } from "@business/services/shipping.service";
 import { ShippingRepository } from "@data/repositories/shipping.repository";
 import { ShippingController } from "@api/controllers/shipping.controller";
 import TagController from "@api/controllers/tags.controller";
+import { RFQController } from '../api/controllers/rfq.controller';
 
 /**
  * Inversify Container Configuration
@@ -241,6 +257,7 @@ container.bind<IBidRepository>(TYPES.BidRepository).to(BidRepository);
 container.bind<IBrandRepository>(TYPES.BrandRepository).to(BrandRepository);
 container.bind<ICategoryRepository>(TYPES.CategoryRepository).to(CategoryRepository);
 container.bind<IProfileRepository>(TYPES.ProfileRepository).to(ProfileRepository);
+container.bind<IShopRepository>(TYPES.ShopRepository).to(ShopRepository);
 container.bind<IAuctionParticipantRepository>(TYPES.AuctionParticipantRepository).to(AuctionParticipantRepository);
 container.bind<IUserRepository>(TYPES.UserRepository).to(UserRepository);
 container.bind<IRefreshSessionRepository>(TYPES.RefreshSessionRepository).to(RefreshSessionRepository);
@@ -259,6 +276,7 @@ container.bind<IUserNotificationRepository>(TYPES.UserNotificationRepository).to
 container.bind<ISellerShopRepository>(TYPES.SellerShopRepository).to(SellerShopRepository);
 container.bind<IChatRepository>(TYPES.ChatRepository).to(ChatRepository);
 container.bind<IshippingRepository>(TYPES.ShippingRepository).to(ShippingRepository);
+container.bind<IRFQRepository>(TYPES.RFQRepository).to(RFQRepository);
 container.bind<IBuyerCheckoutRepository>(TYPES.BuyerCheckoutRepository).to(BuyerCheckoutRepository);
 
 
@@ -271,6 +289,7 @@ container.bind<IBidService>(TYPES.BidService).to(BidService);
 container.bind<IBrandService>(TYPES.BrandService).to(BrandService);
 container.bind<ICategoryService>(TYPES.CategoryService).to(CategoryService);
 container.bind<IProfileService>(TYPES.ProfileService).to(ProfileService);
+container.bind<IShopService>(TYPES.ShopService).to(ShopService);
 container.bind<IAuctionParticipantService>(TYPES.AuctionParticipantService).to(AuctionParticipantService);
 container.bind<IAuthService>(TYPES.AuthService).to(AuthService);
 container.bind<ITokenService>(TYPES.TokenService).to(TokenService);
@@ -309,6 +328,9 @@ container.bind<IChatService>(TYPES.ChatService).to(ChatService);
 // Bind Shipping Service
 container.bind<IshippingService>(TYPES.ShippingService).to(ShippingService);
 
+// Bind RFQ Service
+container.bind<IRFQService>(TYPES.RFQService).to(RFQService);
+
 // Bind SocketService
 container.bind<SocketService>(TYPES.SocketService).to(SocketService).inSingletonScope();
 
@@ -323,6 +345,7 @@ container.bind<AuctionController>(TYPES.AuctionController).to(AuctionController)
 container.bind<CategoryController>(TYPES.CategoryController).to(CategoryController);
 container.bind<TagController>(TYPES.TagController).to(TagController);
 container.bind<ProfileController>(TYPES.ProfileController).to(ProfileController);
+container.bind<ShopController>(TYPES.ShopController).to(ShopController);
 container.bind<SatisfyController>(TYPES.SatisfyController).to(SatisfyController);
 container.bind<BuyerAddressController>(TYPES.BuyerAddressController).to(BuyerAddressController);
 container.bind<BuyerReviewController>(TYPES.BuyerReviewController).to(BuyerReviewController);
@@ -341,4 +364,5 @@ container.bind<SellerShopController>(TYPES.SellerShopController).to(SellerShopCo
 container.bind<ChatController>(TYPES.ChatController).to(ChatController);
 container.bind<ShippingController>(TYPES.ShippingController).to(ShippingController);
 container.bind<BuyerCheckoutController>(TYPES.BuyerCheckoutController).to(BuyerCheckoutController);
+container.bind<RFQController>(TYPES.RFQController).to(RFQController);
 export { container };

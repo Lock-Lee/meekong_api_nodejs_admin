@@ -24,6 +24,27 @@ export interface LoginByPhoneRequest {
   };
 }
 
+export interface SocialAuthRequest {
+  accessToken: string;
+  firebaseToken?: string;
+  deviceInfo?: {
+    id: string;
+    name: string;
+    type: string;
+  };
+}
+
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  pin: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
 export interface RegisterRequest {
   email: string;
   password: string;
@@ -57,6 +78,22 @@ export interface RegisterResponse {
 
 export interface RefreshTokenResponse {
   accessToken: string;
+}
+
+export interface SocialAuthResponse {
+  userId: string;
+  fullName: string;
+  accessToken: string;
+  refreshToken: string;
+  isNewUser: boolean;
+}
+
+export interface ForgotPasswordResponse {
+  message: string;
+}
+
+export interface ResetPasswordResponse {
+  message: string;
 }
 
 export interface UserAuthDetails {
@@ -95,6 +132,11 @@ export interface IAuthService {
     userId: string
   ): Promise<{ accessToken: string; refreshToken: string }>;
   loginByPhone(request: LoginByPhoneRequest): Promise<LoginByPhoneResponse>;
+  loginWithGoogle(request: SocialAuthRequest): Promise<SocialAuthResponse>;
+  loginWithFacebook(request: SocialAuthRequest): Promise<SocialAuthResponse>;
+  loginWithLine(request: SocialAuthRequest): Promise<SocialAuthResponse>;
+  forgotPassword(request: ForgotPasswordRequest): Promise<ForgotPasswordResponse>;
+  resetPassword(request: ResetPasswordRequest): Promise<ResetPasswordResponse>;
 }
 
 export interface ITokenService {
@@ -116,6 +158,10 @@ export interface IUserRepository {
   ): Promise<void>;
   findUserDevice(userId: string, deviceId: string): Promise<any>;
   findByPhone(phone: string): Promise<UserAuthDetails | null>;
+  findByProviderId(provider: AuthProvider, providerId: string): Promise<any>;
+  createSocialUser(userData: CreateSocialUserData): Promise<UserAuthDetails>;
+  updateEmail(userId: string, email: string): Promise<void>;
+  updatePassword(userId: string, hashedPassword: string): Promise<void>;
 }
 
 export interface IRefreshSessionRepository {
@@ -141,6 +187,23 @@ export interface CreateUserData {
     provider: AuthProvider;
     providerId: string;
     passwordHash: string;
+  };
+}
+
+export interface CreateSocialUserData {
+  email?: string;
+  phone?: string;
+  roles: UserRole[];
+  profile: {
+    firstName: string;
+    lastName: string;
+    avatarUrl?: string;
+  };
+  authentication: {
+    provider: AuthProvider;
+    providerId: string;
+    accessToken?: string;
+    refreshToken?: string;
   };
 }
 

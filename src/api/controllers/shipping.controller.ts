@@ -51,6 +51,18 @@ export class ShippingController {
         return res.status(400).json({ message: "from, to, parcel, and courier_code are required" });
       }
 
+      // Validate from address
+      if (!data.from.address || !data.from.postcode) {
+        Logger.warn("Missing required from address fields", { requestId: req.id });
+        return res.status(400).json({ message: "from address must include address and postcode" });
+      }
+
+      // Validate to address
+      if (!data.to.address || !data.to.postcode) {
+        Logger.warn("Missing required to address fields", { requestId: req.id });
+        return res.status(400).json({ message: "to address must include address and postcode" });
+      }
+
       const priceResponse = await this.shippingService.checkPrice(data);
 
       Logger.info("Shipping price checked successfully", {
@@ -86,6 +98,22 @@ export class ShippingController {
           Logger.warn(`Missing required fields in item ${i}`, { requestId: req.id });
           return res.status(400).json({
             message: `Item ${i}: from, to, parcel, and courier_code are required`
+          });
+        }
+
+        // Validate from address
+        if (!item.from.address || !item.from.postcode) {
+          Logger.warn(`Missing required from address fields in item ${i}`, { requestId: req.id });
+          return res.status(400).json({
+            message: `Item ${i}: from address must include address and postcode`
+          });
+        }
+
+        // Validate to address
+        if (!item.to.address || !item.to.postcode) {
+          Logger.warn(`Missing required to address fields in item ${i}`, { requestId: req.id });
+          return res.status(400).json({
+            message: `Item ${i}: to address must include address and postcode`
           });
         }
       }

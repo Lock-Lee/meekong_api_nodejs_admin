@@ -16,6 +16,7 @@ export interface UserData {
     id: string;
     email: string;
     phone?: string;
+    shopId?: string; // first shop id (if the user is a seller and has a shop)
     createdAt: Date;
     updatedAt: Date;
     profile?: ProfileData;
@@ -26,8 +27,8 @@ export interface UpdateProfileRequest {
     lastName?: string;
     email?: string;
     phone?: string;
-    sex?: Gender;
-    birthdate?: string;
+    gender?: Gender; // แก้จาก sex เป็น gender เพื่อให้ตรงกับ schema.prisma
+    birthDate?: string; // แก้จาก birthdate เป็น birthDate เพื่อให้ตรงกับ schema.prisma
     image?: UploadedFile;
 }
 

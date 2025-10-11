@@ -40,6 +40,7 @@ class App {
       cors({
         origin: [
           "http://localhost:3000",
+          "http://localhost:5173",
           process.env.API_BASE || "http://18.143.121.54",
           "http://127.0.0.1:5500", // for Socket.IO testing
           "http://localhost:5500", // for Socket.IO testing

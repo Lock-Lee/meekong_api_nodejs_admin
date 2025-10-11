@@ -235,6 +235,203 @@ export class AuthController {
       return Send.error(res, null, "Login failed");
     }
   };
+
+  loginWithGoogle = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const socialAuthData = req.body as z.infer<typeof authSchema.socialAuth>;
+
+      Logger.info("Google login attempt", {
+        requestId: req.id
+      });
+
+      const result = await this.authService.loginWithGoogle(socialAuthData);
+
+      // Set tokens in HttpOnly cookies
+      res.cookie("accessToken", result.accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 15 * 60 * 1000,
+        sameSite: "strict",
+      });
+
+      res.cookie("refreshToken", result.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 24 * 60 * 60 * 1000,
+        sameSite: "strict",
+      });
+
+      Logger.info("Google login successful", {
+        userId: result.userId,
+        isNewUser: result.isNewUser,
+        requestId: req.id
+      });
+
+      return Send.success(res, result);
+    } catch (error) {
+      Logger.error("Google login failed", {
+        error: (error as Error).message,
+        requestId: req.id
+      });
+
+      if (error instanceof BusinessError) {
+        return Send.error(res, null, error.message, error.statusCode);
+      }
+
+      return Send.error(res, null, "Google login failed");
+    }
+  };
+
+  loginWithFacebook = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const socialAuthData = req.body as z.infer<typeof authSchema.socialAuth>;
+
+      Logger.info("Facebook login attempt", {
+        requestId: req.id
+      });
+
+      const result = await this.authService.loginWithFacebook(socialAuthData);
+
+      // Set tokens in HttpOnly cookies
+      res.cookie("accessToken", result.accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 15 * 60 * 1000,
+        sameSite: "strict",
+      });
+
+      res.cookie("refreshToken", result.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 24 * 60 * 60 * 1000,
+        sameSite: "strict",
+      });
+
+      Logger.info("Facebook login successful", {
+        userId: result.userId,
+        isNewUser: result.isNewUser,
+        requestId: req.id
+      });
+
+      return Send.success(res, result);
+    } catch (error) {
+      Logger.error("Facebook login failed", {
+        error: (error as Error).message,
+        requestId: req.id
+      });
+
+      if (error instanceof BusinessError) {
+        return Send.error(res, null, error.message, error.statusCode);
+      }
+
+      return Send.error(res, null, "Facebook login failed");
+    }
+  };
+
+  loginWithLine = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const socialAuthData = req.body as z.infer<typeof authSchema.socialAuth>;
+
+      Logger.info("LINE login attempt", {
+        requestId: req.id
+      });
+
+      const result = await this.authService.loginWithLine(socialAuthData);
+
+      // Set tokens in HttpOnly cookies
+      res.cookie("accessToken", result.accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 15 * 60 * 1000,
+        sameSite: "strict",
+      });
+
+      res.cookie("refreshToken", result.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 24 * 60 * 60 * 1000,
+        sameSite: "strict",
+      });
+
+      Logger.info("LINE login successful", {
+        userId: result.userId,
+        isNewUser: result.isNewUser,
+        requestId: req.id
+      });
+
+      return Send.success(res, result);
+    } catch (error) {
+      Logger.error("LINE login failed", {
+        error: (error as Error).message,
+        requestId: req.id
+      });
+
+      if (error instanceof BusinessError) {
+        return Send.error(res, null, error.message, error.statusCode);
+      }
+
+      return Send.error(res, null, "LINE login failed");
+    }
+  };
+
+  forgotPassword = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const forgotPasswordData = req.body as z.infer<typeof authSchema.forgotPassword>;
+
+      Logger.info("Forgot password request", {
+        email: forgotPasswordData.email,
+        requestId: req.id
+      });
+
+      const result = await this.authService.forgotPassword(forgotPasswordData);
+
+      Logger.info("Forgot password request processed", {
+        requestId: req.id
+      });
+
+      return Send.success(res, result);
+    } catch (error) {
+      Logger.error("Forgot password failed", {
+        error: (error as Error).message,
+        requestId: req.id
+      });
+
+      if (error instanceof BusinessError) {
+        return Send.error(res, null, error.message, error.statusCode);
+      }
+
+      return Send.error(res, null, "Forgot password failed");
+    }
+  };
+
+  resetPassword = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const resetPasswordData = req.body as z.infer<typeof authSchema.resetPassword>;
+
+      Logger.info("Reset password attempt", {
+        requestId: req.id
+      });
+
+      const result = await this.authService.resetPassword(resetPasswordData);
+
+      Logger.info("Password reset successful", {
+        requestId: req.id
+      });
+
+      return Send.success(res, result);
+    } catch (error) {
+      Logger.error("Reset password failed", {
+        error: (error as Error).message,
+        requestId: req.id
+      });
+
+      if (error instanceof BusinessError) {
+        return Send.error(res, null, error.message, error.statusCode);
+      }
+
+      return Send.error(res, null, "Reset password failed");
+    }
+  };
 }
 
 // Remove default export to avoid confusion with named export

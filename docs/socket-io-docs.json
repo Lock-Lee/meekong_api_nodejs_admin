@@ -1,0 +1,309 @@
+{
+  "info": {
+    "title": "Meekong Socket.IO API Documentation",
+    "version": "1.0.0",
+    "description": "Real-time Socket.IO events for the Meekong API",
+    "serverUrl": "http://localhost:3000"
+  },
+  "authentication": {
+    "required": true,
+    "type": "JWT Bearer Token",
+    "description": "Client must authenticate using JWT token before using other events",
+    "example": {
+      "event": "authenticate",
+      "payload": {
+        "token": "your-jwt-token-here",
+        "username": "optional-display-name"
+      }
+    }
+  },
+  "clientToServerEvents": [
+    {
+      "event": "authenticate",
+      "description": "Authenticate user with JWT token (Required)",
+      "payload": {
+        "token": "string (required) - JWT access token",
+        "username": "string (optional) - Display name for the user"
+      },
+      "responses": [
+        "authentication_success",
+        "authentication_error"
+      ],
+      "example": "socket.emit('authenticate', {\n  token: 'eyJhbGciOiJIUzI1NiIs...',\n  username: 'John Doe'\n});"
+    },
+    {
+      "event": "new_message",
+      "description": "Send a new message to a conversation",
+      "payload": {
+        "message": "string (required) - Message content",
+        "conversationId": "string (required) - Conversation ID"
+      },
+      "authentication": "Required",
+      "broadcasts": "new_message event to all users in conversation room",
+      "example": "socket.emit('new_message', {\n  message: 'Hello!',\n  conversationId: 'conv-123-456'\n});"
+    },
+    {
+      "event": "join_conversation",
+      "description": "Join a conversation room to receive real-time messages",
+      "payload": "conversationId: string",
+      "authentication": "Required",
+      "broadcasts": "conversation_joined to other users in room",
+      "example": "socket.emit('join_conversation', 'conv-123-456');"
+    },
+    {
+      "event": "leave_conversation",
+      "description": "Leave a conversation room",
+      "payload": "conversationId: string",
+      "authentication": "Required",
+      "broadcasts": "conversation_left to other users in room",
+      "example": "socket.emit('leave_conversation', 'conv-123-456');"
+    },
+    {
+      "event": "typing",
+      "description": "Indicate user is typing in a conversation",
+      "payload": {
+        "conversationId": "string (required)"
+      },
+      "authentication": "Required",
+      "broadcasts": "typing event to other users in conversation",
+      "example": "socket.emit('typing', { conversationId: 'conv-123-456' });"
+    },
+    {
+      "event": "stop_typing",
+      "description": "Indicate user stopped typing",
+      "payload": {
+        "conversationId": "string (required)"
+      },
+      "authentication": "Required",
+      "broadcasts": "stop_typing event to other users in conversation",
+      "example": "socket.emit('stop_typing', { conversationId: 'conv-123-456' });"
+    },
+    {
+      "event": "mark_as_read",
+      "description": "Mark all messages in a conversation as read",
+      "payload": {
+        "conversationId": "string (required)"
+      },
+      "authentication": "Required",
+      "broadcasts": "message_read to other users, unread_count_updated to sender",
+      "example": "socket.emit('mark_as_read', { conversationId: 'conv-123-456' });"
+    },
+    {
+      "event": "get_conversation_list",
+      "description": "Request list of all user's conversations",
+      "payload": "none",
+      "authentication": "Required",
+      "response": "conversation_list_updated",
+      "example": "socket.emit('get_conversation_list');"
+    },
+    {
+      "event": "get_unread_count",
+      "description": "Request unread message count for a conversation",
+      "payload": {
+        "conversationId": "string (required)"
+      },
+      "authentication": "Required",
+      "response": "unread_count_updated",
+      "example": "socket.emit('get_unread_count', { conversationId: 'conv-123-456' });"
+    },
+    {
+      "event": "satisfy_join_item",
+      "description": "Join item room to receive satisfy/negotiation count updates",
+      "payload": "itemId: string",
+      "authentication": "Optional",
+      "broadcasts": "satisfy_count_update when count changes",
+      "example": "socket.emit('satisfy_join_item', 'item-123-456');"
+    },
+    {
+      "event": "satisfy_leave_item",
+      "description": "Leave item room",
+      "payload": "itemId: string",
+      "authentication": "Optional",
+      "example": "socket.emit('satisfy_leave_item', 'item-123-456');"
+    },
+    {
+      "event": "add_user",
+      "description": "DEPRECATED: Legacy authentication method (use 'authenticate' instead)",
+      "payload": "username: string",
+      "response": "login",
+      "deprecated": true
+    }
+  ],
+  "serverToClientEvents": [
+    {
+      "event": "authentication_success",
+      "description": "Authentication successful",
+      "payload": {
+        "userId": "string - Authenticated user ID",
+        "username": "string - Display name"
+      },
+      "example": "socket.on('authentication_success', (data) => {\n  console.log('Authenticated as:', data.username);\n  console.log('User ID:', data.userId);\n});"
+    },
+    {
+      "event": "authentication_error",
+      "description": "Authentication failed",
+      "payload": {
+        "error": "string - Error message"
+      },
+      "example": "socket.on('authentication_error', (data) => {\n  console.error('Auth failed:', data.error);\n});"
+    },
+    {
+      "event": "new_message",
+      "description": "New message received in conversation",
+      "payload": {
+        "messageId": "string - Message ID",
+        "username": "string - Sender's display name",
+        "senderId": "string - Sender's user ID",
+        "message": "string - Message content",
+        "conversationId": "string - Conversation ID",
+        "timestamp": "string (ISO 8601) - Message timestamp",
+        "senderType": "string - USER or SHOP",
+        "messageType": "string - TEXT or IMAGE",
+        "attachments": "string (optional) - Attachment URLs",
+        "replyTo": "object (optional) - Referenced message if this is a reply"
+      },
+      "example": "socket.on('new_message', (data) => {\n  console.log(data.username + ': ' + data.message);\n  displayMessage(data);\n});"
+    },
+    {
+      "event": "conversation_joined",
+      "description": "User joined conversation",
+      "payload": {
+        "conversationId": "string",
+        "username": "string"
+      },
+      "example": "socket.on('conversation_joined', (data) => {\n  console.log(data.username + ' joined conversation');\n});"
+    },
+    {
+      "event": "conversation_left",
+      "description": "User left conversation",
+      "payload": {
+        "conversationId": "string",
+        "username": "string"
+      },
+      "example": "socket.on('conversation_left', (data) => {\n  console.log(data.username + ' left conversation');\n});"
+    },
+    {
+      "event": "typing",
+      "description": "User is typing",
+      "payload": {
+        "username": "string",
+        "conversationId": "string"
+      },
+      "example": "socket.on('typing', (data) => {\n  showTypingIndicator(data.username);\n});"
+    },
+    {
+      "event": "stop_typing",
+      "description": "User stopped typing",
+      "payload": {
+        "username": "string",
+        "conversationId": "string"
+      },
+      "example": "socket.on('stop_typing', (data) => {\n  hideTypingIndicator(data.username);\n});"
+    },
+    {
+      "event": "message_read",
+      "description": "Messages were marked as read by a user",
+      "payload": {
+        "conversationId": "string",
+        "userId": "string - User who read the messages"
+      },
+      "example": "socket.on('message_read', (data) => {\n  updateReadStatus(data.conversationId, data.userId);\n});"
+    },
+    {
+      "event": "unread_count_updated",
+      "description": "Unread message count updated",
+      "payload": {
+        "conversationId": "string",
+        "unreadCount": "number",
+        "lastMessage": "string (optional) - Preview of last message",
+        "lastMessageTime": "string (optional, ISO 8601) - Timestamp of last message"
+      },
+      "example": "socket.on('unread_count_updated', (data) => {\n  updateBadge(data.conversationId, data.unreadCount);\n});"
+    },
+    {
+      "event": "conversation_list_updated",
+      "description": "Conversation list with metadata",
+      "payload": {
+        "conversations": "array - List of conversation objects with id, name, lastMessage, lastMessageTime, unreadCount, participants"
+      },
+      "example": "socket.on('conversation_list_updated', (data) => {\n  renderConversationList(data.conversations);\n});"
+    },
+    {
+      "event": "satisfy_count_update",
+      "description": "Satisfy/negotiation participant count updated for an item",
+      "payload": {
+        "itemId": "string - Item ID",
+        "count": "number - Current participant count"
+      },
+      "example": "socket.on('satisfy_count_update', (data) => {\n  updateItemCount(data.itemId, data.count);\n});"
+    },
+    {
+      "event": "user_joined",
+      "description": "DEPRECATED: Legacy event (user joined chat)",
+      "payload": {
+        "username": "string",
+        "numUsers": "number"
+      },
+      "deprecated": true
+    },
+    {
+      "event": "user_left",
+      "description": "DEPRECATED: Legacy event (user left chat)",
+      "payload": {
+        "username": "string",
+        "numUsers": "number"
+      },
+      "deprecated": true
+    },
+    {
+      "event": "login",
+      "description": "DEPRECATED: Legacy login event",
+      "payload": {
+        "numUsers": "number"
+      },
+      "deprecated": true
+    }
+  ],
+  "connectionExample": "// Connect to Socket.IO server\nconst socket = io('http://localhost:3000', {\n  transports: ['websocket', 'polling'],\n  reconnection: true,\n  reconnectionDelay: 1000,\n  reconnectionAttempts: 5\n});\n\n// Authenticate\nsocket.emit('authenticate', {\n  token: 'your-jwt-token',\n  username: 'John Doe'\n});\n\n// Listen for authentication result\nsocket.on('authentication_success', (data) => {\n  console.log('Authenticated:', data.userId);\n\n  // Join a conversation\n  socket.emit('join_conversation', 'conv-123-456');\n});\n\nsocket.on('authentication_error', (data) => {\n  console.error('Auth failed:', data.error);\n});\n\n// Listen for new messages\nsocket.on('new_message', (data) => {\n  console.log('New message:', data.message);\n  displayMessage(data);\n});\n\n// Send a message\nfunction sendMessage(message, conversationId) {\n  socket.emit('new_message', { message, conversationId });\n}\n\n// Show typing indicator\nfunction showTyping(conversationId) {\n  socket.emit('typing', { conversationId });\n\n  // Auto-stop typing after 3 seconds\n  setTimeout(() => {\n    socket.emit('stop_typing', { conversationId });\n  }, 3000);\n}",
+  "testingGuide": {
+    "authenticated": {
+      "url": "http://localhost:3000/socket-chat-auth-test.html",
+      "steps": [
+        "Login using POST /api/auth/login to get JWT token",
+        "Copy the JWT token",
+        "Paste token in the 'JWT Token' field",
+        "Click 'Authenticate' button",
+        "Enter conversation ID and click 'Join Conversation'",
+        "Send messages to test real-time messaging",
+        "Open multiple tabs to test multi-user chat"
+      ]
+    },
+    "legacy": {
+      "url": "http://localhost:3000/socket-chat-test.html",
+      "note": "Legacy mode without authentication",
+      "deprecated": true
+    }
+  },
+  "commonIssues": [
+    {
+      "issue": "Connection Failed",
+      "solution": "Check CORS settings and ensure server URL is correct"
+    },
+    {
+      "issue": "Authentication Error",
+      "solution": "Verify JWT token is valid and not expired"
+    },
+    {
+      "issue": "Messages Not Sending",
+      "solution": "Ensure you are authenticated and have joined the conversation room"
+    },
+    {
+      "issue": "Not Receiving Messages",
+      "solution": "Check that you have joined the correct conversation room"
+    },
+    {
+      "issue": "Typing Indicators Not Working",
+      "solution": "Verify conversationId is correct and you are in the room"
+    }
+  ]
+}

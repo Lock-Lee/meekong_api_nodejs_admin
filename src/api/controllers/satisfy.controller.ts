@@ -12,7 +12,7 @@ const listSatisfyQuerySchema = z.object({
   page: z.string().optional().default("1").transform(Number),
   itemId: z.string().uuid().optional(),
   status: z.string().optional(),
-  statusFilter: z.enum(["PENDING", "WAITING_TO_PAY", "COMPLETED"]).optional(),
+  statusFilter: z.enum(["PENDING", "WAITING_TO_PAY", "END", "COMPLETED"]).optional(),
 });
 
 const createSatisfyBodySchema = z.object({

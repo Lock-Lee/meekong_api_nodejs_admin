@@ -10,9 +10,9 @@ import {
 } from "../interfaces/satisfy.interfaces";
 import { IItemRepository } from "../interfaces/item.interfaces";
 import { SocketService } from "@shared/infra/socket/socket.service";
-import { prisma as PrismaClient } from "@data/database/db";
+import { prisma, prisma as PrismaClient } from "@data/database/db";
 import { BusinessError } from "../../shared/errors/business.errors";
-import { OfferStatus } from "../../../generated/prisma";
+import { OfferStatus, OrderStatus } from "../../../generated/prisma";
 import { Logger } from "../../shared/utils/logger";
 
 @injectable()
@@ -126,6 +126,41 @@ export class SatisfyService implements ISatisfyService {
     if (!item) {
       throw new BusinessError("Item not found", 404);
     }
+
+    // If there is already a paid/completed/shipped order for this item (and variant), consider it already has a winner
+    const paidStatuses = [OrderStatus.PAID, OrderStatus.COMPLETED, OrderStatus.SHIPPED];
+    const hasWinner = await prisma.orderItem.findFirst({
+      where: {
+        itemId: request.itemId,
+        ...(request.variantId ? { variantId: request.variantId } : {}),
+        order: { status: { in: paidStatuses } },
+      },
+      select: { id: true },
+    });
+    if (hasWinner) {
+      throw new BusinessError("This item already has a winner", 400);
+    }
+
+
+    if(request.status === OfferStatus.OPEN) {
+      const existSatisfy = await prisma.satisfy.findFirst({
+        where: {
+          itemId: request.itemId,
+          variantId: request.variantId,
+          sellerId: item.seller.id,
+          buyerId: request.buyerId,
+          status: {  notIn: [ OfferStatus.ADJUST] },
+        },
+        orderBy: {
+          createdAt: 'desc', // เอาล่าสุดก่อน
+        },
+      });
+      
+      if(existSatisfy) {
+        throw new BusinessError("Buyer already has an open satisfy for this item " + request.itemId + " and variant " + request.variantId, 400);
+      }
+     }
+    
     // console.log(item);
 
     const satisfyData = {

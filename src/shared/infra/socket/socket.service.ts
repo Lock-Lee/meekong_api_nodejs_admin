@@ -4,23 +4,12 @@ import { Server as SocketIOServer, Socket } from 'socket.io';
 import { Logger } from '@shared/utils/logger';
 import { TYPES } from '@shared/types/service.types';
 import { ITokenService } from '@business/interfaces/auth.interfaces';
-import { PrismaClient } from '../../../../generated/prisma';
+import { PrismaClient, ChatMessage, Prisma } from '../../../../generated/prisma';
 
 interface SocketData {
     userId?: string;
     username?: string;
     isAuthenticated?: boolean;
-}
-
-interface ChatMessage {
-    id: string;
-    conversationId: string;
-    senderId: string;
-    senderType: string;
-    message: string;
-    messageType: string;
-    attachments?: string | null;
-    createdAt: Date;
 }
 
 interface ServerToClientEvents {
@@ -35,7 +24,7 @@ interface ServerToClientEvents {
         timestamp: string;
         senderType: string;
         messageType?: string;
-        attachments?: string;
+        attachments?: Prisma.JsonValue;
         replyTo?: {
             id: string;
             message: string;
@@ -414,12 +403,16 @@ export class SocketService {
                 }
 
                 try {
-                    const unreadCount = await this.getDatabaseUnreadCount(socket.data.userId, data.conversationId);
+                    // Get unread count from both database and memory, then combine them
+                    const dbUnreadCount = await this.getDatabaseUnreadCount(socket.data.userId, data.conversationId);
+                    const memoryUnreadCount = this.getUnreadCount(socket.data.userId, data.conversationId);
+                    const totalUnreadCount = dbUnreadCount + memoryUnreadCount;
+
                     const conversationInfo = await this.getConversationInfo(data.conversationId);
 
                     socket.emit('unread_count_updated', {
                         conversationId: data.conversationId,
-                        unreadCount,
+                        unreadCount: totalUnreadCount,
                         lastMessage: conversationInfo?.lastMessage,
                         lastMessageTime: conversationInfo?.lastMessageTime
                     });
@@ -427,12 +420,14 @@ export class SocketService {
                     Logger.info('🔢 Unread count sent', {
                         userId: socket.data.userId,
                         conversationId: data.conversationId,
-                        unreadCount
+                        dbUnreadCount,
+                        memoryUnreadCount,
+                        totalUnreadCount
                     });
                 } catch (error) {
                     Logger.error('❌ Error getting unread count', error);
 
-                    // Fallback to memory data
+                    // Fallback to memory data only
                     const unreadCount = this.getUnreadCount(socket.data.userId, data.conversationId);
                     const conversationInfo = this.conversationData.get(data.conversationId);
 
@@ -487,7 +482,7 @@ export class SocketService {
             timestamp: message.createdAt.toISOString(),
             senderType: message.senderType,
             messageType: message.messageType,
-            attachments: message.attachments || undefined,
+            attachments: message.attachments,
             replyTo: null // You can include reply data if needed
         };
 

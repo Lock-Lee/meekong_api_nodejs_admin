@@ -61,7 +61,8 @@ export class ChatController {
         if (!userId) {
             return res.status(401).json({ error: 'User ID is required' });
         }
-        const conversations = await this.chatService.getConversations(userId);
+        const keyword = req.query.keyword as string | undefined;
+        const conversations = await this.chatService.getConversations(userId, keyword);
         res.json(conversations);
     }
 
@@ -70,7 +71,8 @@ export class ChatController {
         if (!shopId) {
             return res.status(400).json({ error: 'Shop ID is required' });
         }
-        const conversations = await this.chatService.getConversationsForShop(shopId);
+        const keyword = req.query.keyword as string | undefined;
+        const conversations = await this.chatService.getConversationsForShop(shopId, keyword);
         res.json(conversations);
     }
 

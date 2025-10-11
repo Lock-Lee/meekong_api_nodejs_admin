@@ -125,20 +125,24 @@ export class SellerShopRepository implements ISellerShopRepository {
         if (satisfyStatus) {
             if (satisfyStatus === "SELLING") {
                 // กำลังขาย - มี row ใน table Satisfy
-                where.satisfy = {
-                    some: {
-                        status: { not: "ACCEPTED" },
+                where.status = Status.ACTIVE
+                where.NOT = [
+                    {
+                      AND: [
+                        { satisfy: { some: { status: "ACCEPTED" } } },
+                        { orderItems: { some: { order: { status: { in: ["PAID", "COMPLETED", "SHIPPED"] } } } } }
+                      ]
                     }
-                };
+                  ];
+
             } else if (satisfyStatus === "COMPLETED") {
                 // เสร็จสิ้น - มี satisfy record และต้องเช็ค record ล่าสุด
                 // ใช้วิธีง่ายๆ โดยเช็คว่ามี satisfy record ก่อน แล้วจะไปเช็ค latest record ใน logic หลัง
-                where.satisfy = {
-                    some: {
-                        status: "ACCEPTED",
-                        shippingCost: { not: 0 }
-                    }
-                };
+                // เปลี่ยนเงื่อนไขเป็น: ต้องมี Satisfy ที่ ACCEPTED และมี Order ของ item นี้ที่ชำระเงินแล้ว (Order.status = 'PAID')
+                where.AND = [
+                    { satisfy: { some: { status: "ACCEPTED" } } },
+                    { orderItems: { some: { order: { status: { in: ["PAID", "COMPLETED", "SHIPPED"] } } } } }
+                ];
             }
         }
 
@@ -191,9 +195,11 @@ export class SellerShopRepository implements ISellerShopRepository {
         const items = await this.prisma.item.findMany({
             where: {
                 ...where,
+                ...(sortBy === "price" && orderedItemIds ? { id: { in: orderedItemIds } } : {}),
             },
-            take: takeNum,
-            skip,
+            ...(sortBy === "price"
+                ? { take: orderedItemIds ? orderedItemIds.length : 0, skip: 0 }
+                : { take: takeNum, skip }),
             select: {
                 id: true,
                 nameTh: true,
@@ -258,8 +264,51 @@ export class SellerShopRepository implements ISellerShopRepository {
                     },
                 },
                 auction: {
-                    include: {
-                        bids: userId ? { where: { userId } } : false,
+                    select: {
+                        id:true,
+                        itemId:true,
+                        variantId:true,
+                        startPrice:true,
+                        currentBid:true,
+                        buyNowPrice:true,
+                        highestBidderId:true,
+                        endPrice:true,
+                        winnerId:true,
+                        finalBidAmount:true,
+                        shippingCost:true,
+                        commissionRate:true,
+                        commissionFee:true,
+                        totalAmount:true,
+                        startAt:true,
+                        endAt:true,
+                        isActive:true,
+                        createdById:true,
+                        createdAt:true,
+                        updatedAt:true,
+                        winner: {
+                            select: {
+                                id: true,
+                                profile: {
+                                    select: {
+                                        firstName: true,
+                                        lastName: true,
+                                        avatarUrl: true,
+                                    },
+                                },
+                            },
+                        },
+                 
+                        bids: userId ? { 
+                            where: { userId },
+                            select: {
+                                id: true,
+                                amount: true,
+                                bidAt: true,
+                                userId: true,
+                            },
+                            orderBy: { bidAt: 'desc' },
+                            take: 1,
+                        } : false,
                         _count: { select: { bids: true } },
                         AuctionParticipant: true,
                     },
@@ -319,12 +368,81 @@ export class SellerShopRepository implements ISellerShopRepository {
             const hasUserBid = userId && item.auction && (item.auction as any).bids?.length > 0;
             const { ...auctionWithoutBids } = (item.auction as any) || {};
             const tags = await this.fetchItemTags(item.id);
+
+            // Query auction winner payment status using auction.id (same logic as bid.repository.ts)
+            let statusAuction: 'WAITING_TO_PAID' | 'PAID' | 'EXPIRED_PAID' | 'CANCELED_PAID' | undefined;
+            let paymentExpireAt: Date | null = null;
+
+            if (item.auction && (item.auction as any).id && (item.auction as any).winnerId) {
+                const auction = item.auction as any;
+                
+                // หา order ของผู้ชนะประมูล
+                const winnerOrder = await this.prisma.order.findFirst({
+                    where: {
+                        buyerId: auction.winnerId,
+                        items: {
+                            some: {
+                                itemId: auction.itemId,
+                            },
+                        },
+                    },
+                    select: {
+                        id: true,
+                        status: true,
+                        createdAt: true,
+                    },
+                    orderBy: {
+                        createdAt: 'desc',
+                    },
+                });
+
+                // คำนวณสถานะการจ่ายเงิน
+                if (winnerOrder) {
+                    const now = new Date();
+                    const orderCreatedAt = winnerOrder.createdAt;
+                    const hoursSinceCreated = (now.getTime() - orderCreatedAt.getTime()) / (1000 * 60 * 60);
+
+                    switch (winnerOrder.status) {
+                        case 'PENDING':
+                            // คำนวณเวลาหมดอายุ (12 ชั่วโมงจากเวลาสร้าง order)
+                            paymentExpireAt = new Date(orderCreatedAt.getTime() + 12 * 60 * 60 * 1000);
+                            
+                            if (hoursSinceCreated > 12) {
+                                statusAuction = 'EXPIRED_PAID';
+                            } else {
+                                statusAuction = 'WAITING_TO_PAID';
+                            }
+                            break;
+
+                        case 'PAID':
+                        case 'SHIPPED':
+                        case 'COMPLETED':
+                            statusAuction = 'PAID';
+                            break;
+
+                        case 'CANCELED':
+                            statusAuction = 'CANCELED_PAID';
+                            break;
+                    }
+                }
+            }
+
             results.push({
                 ...item,
                 auction: item.auction
                     ? {
                         ...auctionWithoutBids,
                         hasUserBid,
+                        buyer: (item.auction as any).buyer ? {
+                            id: (item.auction as any).buyer.id,
+                            profile: (item.auction as any).buyer.profile ? {
+                                firstName: (item.auction as any).buyer.profile.firstName,
+                                lastName: (item.auction as any).buyer.profile.lastName,
+                                avatarUrl: (item.auction as any).buyer.profile.avatarUrl,
+                            } : undefined,
+                        } : undefined,
+                        statusAuction,
+                        paymentExpireAt,
                     }
                     : null,
                 imageList: imagesByItemId[item.id] || [],

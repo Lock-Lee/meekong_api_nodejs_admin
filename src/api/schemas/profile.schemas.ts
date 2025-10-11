@@ -10,8 +10,8 @@ export const updateProfileBodySchema = z.object({
     lastName: z.string().min(1).optional(),
     email: z.string().email("Invalid email format").optional(),
     phone: z.string().min(1).optional(),
-    sex: z.nativeEnum(Gender).optional(),
-    birthdate: z.string().datetime("Invalid datetime format").optional(),
+    gender: z.nativeEnum(Gender).optional(),
+    birthDate: z.string().optional(),
 });
 
 export default {

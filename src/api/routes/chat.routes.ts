@@ -174,6 +174,12 @@ class ChatRouter extends BaseRouter {
                  *     summary: Get user's conversations
                  *     security:
                  *       - bearerAuth: []
+                 *     parameters:
+                 *       - in: query
+                 *         name: keyword
+                 *         schema:
+                 *           type: string
+                 *         description: Search keyword to filter conversations by title, last message, user name, shop name, or admin name
                  *     responses:
                  *       200:
                  *         description: List of conversations
@@ -201,6 +207,11 @@ class ChatRouter extends BaseRouter {
                  *         schema:
                  *           type: string
                  *         description: Shop ID
+                 *       - in: query
+                 *         name: keyword
+                 *         schema:
+                 *           type: string
+                 *         description: Search keyword to filter conversations by title, last message, user name, shop name, or admin name
                  *     responses:
                  *       200:
                  *         description: List of conversations for the shop

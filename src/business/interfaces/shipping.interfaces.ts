@@ -53,13 +53,15 @@ export interface CourierInformationResult {
 }
 
 export interface ShippingAddress {
-    name: string;
+    name?: string;
     address: string;
-    district: string;
-    state: string;
-    province: string;
+    district?: string;
+    district_name?: string;
+    state?: string;
+    state_name?: string;
+    province?: string;
     postcode: string;
-    tel: string;
+    tel?: string;
     lat?: string;
     lng?: string;
 }

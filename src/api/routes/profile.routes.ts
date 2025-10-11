@@ -64,18 +64,60 @@ class ProfileRouter extends BaseRouter {
                  *     requestBody:
                  *       required: true
                  *       content:
+                 *         multipart/form-data:
+                 *           schema:
+                 *             type: object
+                 *             properties:
+                 *               firstName:
+                 *                 type: string
+                 *                 description: ชื่อ
+                 *               lastName:
+                 *                 type: string
+                 *                 description: นามสกุล
+                 *               email:
+                 *                 type: string
+                 *                 format: email
+                 *                 description: อีเมล
+                 *               phone:
+                 *                 type: string
+                 *                 description: เบอร์โทรศัพท์
+                 *               gender:
+                 *                 type: string
+                 *                 enum: [MALE, FEMALE, OTHER]
+                 *                 description: เพศ
+                 *               birthDate:
+                 *                 type: string
+                 *                 format: date-time
+                 *                 description: วันเกิด (ISO 8601 format)
+                 *               image:
+                 *                 type: string
+                 *                 format: binary
+                 *                 description: รูปโปรไฟล์ (JPEG, PNG, WebP, max 5MB)
                  *         application/json:
                  *           schema:
                  *             type: object
                  *             properties:
                  *               firstName:
                  *                 type: string
+                 *                 description: ชื่อ
                  *               lastName:
                  *                 type: string
-                 *               bio:
+                 *                 description: นามสกุล
+                 *               email:
                  *                 type: string
-                 *               phoneNumber:
+                 *                 format: email
+                 *                 description: อีเมล
+                 *               phone:
                  *                 type: string
+                 *                 description: เบอร์โทรศัพท์
+                 *               gender:
+                 *                 type: string
+                 *                 enum: [MALE, FEMALE, OTHER]
+                 *                 description: เพศ
+                 *               birthDate:
+                 *                 type: string
+                 *                 format: date-time
+                 *                 description: วันเกิด (ISO 8601 format)
                  *     responses:
                  *       200:
                  *         description: Profile updated successfully

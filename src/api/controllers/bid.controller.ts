@@ -136,7 +136,8 @@ export class BidController {
       return Send.success(res, ranking);
     } catch (error) {
       Logger.error("Failed to get bid ranking", {
-        error: (error as Error).message,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
         auctionId: req.params?.id,
         requestId: req.id
       });
@@ -145,7 +146,51 @@ export class BidController {
         return Send.error(res, null, error.message, error.statusCode);
       }
 
-      return Send.error(res, null, "Failed to retrieve bid.");
+      return Send.error(res, null, error instanceof Error ? error.message : "Failed to retrieve bid.");
+    }
+  }
+
+  /**
+   * Cancel a bid
+   */
+  async cancelBid(req: Request, res: Response): Promise<void> {
+    try {
+      const paramsValidation = bidSchema.cancelBidParams.safeParse(req.params);
+      if (!paramsValidation.success) {
+        Logger.warn("Invalid parameters for bid cancellation", {
+          errors: paramsValidation.error.issues,
+          requestId: req.id
+        });
+        return Send.error(res, paramsValidation.error.issues, "Invalid parameters.");
+      }
+
+      const { id: bidId } = paramsValidation.data;
+      const userId = (req as any).user?.id;
+
+      if (!userId) {
+        Logger.warn("User not authenticated for bid cancellation", { requestId: req.id });
+        return Send.error(res, null, "User not authenticated.", 401);
+      }
+
+      Logger.info("Canceling bid", { bidId, userId, requestId: req.id });
+
+      await this.bidService.cancelBid(bidId, userId);
+
+      Logger.info("Bid canceled successfully", { bidId, userId, requestId: req.id });
+
+      return Send.success(res, null, "Bid canceled successfully.");
+    } catch (error) {
+      Logger.error("Failed to cancel bid", {
+        error: (error as Error).message,
+        bidId: req.params?.id,
+        requestId: req.id
+      });
+
+      if (error instanceof BusinessError) {
+        return Send.error(res, null, error.message, error.statusCode);
+      }
+
+      return Send.error(res, null, "An internal server error occurred.");
     }
   }
 }

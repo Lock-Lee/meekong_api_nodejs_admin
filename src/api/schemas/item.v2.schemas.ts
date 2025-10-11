@@ -26,6 +26,10 @@ export const createItemV2BodySchema = z.object({
             defectNotes: z.string().optional(),
             includedItems: z.string().optional(),
             stockQuantity: z.number().int().min(0).default(0),
+            weight: z.number().int().positive({ message: "Weight must be a positive integer (in grams)." }).optional(),
+            dimensionWidth: z.number().int().positive({ message: "Width must be a positive integer (in cm)." }).optional(),
+            dimensionHigh: z.number().int().positive({ message: "Height must be a positive integer (in cm)." }).optional(),
+            dimensionLong: z.number().int().positive({ message: "Length must be a positive integer (in cm)." }).optional(),
             sizes: z
                 .array(
                     z.object({

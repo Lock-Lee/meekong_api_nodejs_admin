@@ -27,6 +27,7 @@ export interface SatisfyDataAll {
   buyer?: SatisfyBuyer;
   isPaid?: boolean;
   isExpired?: boolean;
+  isWinner?: boolean;
   item?: Item;
   countPending?: number;
   countWaitingToPay?: number;
