@@ -1,5 +1,15 @@
 import { Status } from "../../../generated/prisma";
 
+export interface TagData {
+    id: string;
+    name: string;
+}
+
+export interface ItemData {
+    id: string;
+    name: string;
+}
+
 export interface CategoryData {
     id: string;
     nameTh: string;
@@ -12,6 +22,8 @@ export interface CategoryData {
     status: Status;
     createdAt: Date;
     updatedAt: Date;
+    tag?: TagData[];
+    items?: ItemData[];
     children?: CategoryData[];
 }
 
@@ -21,6 +33,8 @@ export interface CreateCategoryRequest {
     imageUrl?: string;
     parentId?: string;
     level: number;
+    tag?: string[];
+    items?: string[];
 }
 
 export interface updateCategoryRequest {
@@ -29,6 +43,8 @@ export interface updateCategoryRequest {
     imageUrl?: string;
     parentId?: string;
     level: number;
+    tag?: string[];
+    items?: string[];
 }
 
 export interface CategoryHierarchy {
@@ -38,8 +54,22 @@ export interface CategoryHierarchy {
     imageUrl?: string;
     level: number;
     fullPath: string[];
+    tag?: TagData[];
+    items?: ItemData[];
     children: CategoryHierarchy[];
 }
+
+
+export interface CategoryListResult {
+    items: CategoryHierarchy[];
+    pagination: {
+        total: number;
+        page: number;
+        pageSize: number;
+        totalPages: number;
+    };
+}
+
 export interface UpsertWorkItem {
     mode: "create" | "update";
     id?: string;
@@ -61,14 +91,28 @@ export interface ICategoryRepository {
         parentId?: string | null;
     }>): Promise<CategoryData[]>;
     upsertManyCategories(items: UpsertWorkItem[]): Promise<CategoryData[]>;
+    assignTagsToCategory(categoryId: string, tagIds: string[]): Promise<number>
+    removeTagsfromCategory(categoryId: string): Promise<number>
+    replaceCategoryTags(
+        categoryId: string,
+        tagIds: string[]
+    ): Promise<{ removed: number; added: number }>;
+    replaceCategoryItems(
+        categoryId: string,
+        itemIds: string[]
+    ): Promise<{ removed: number; added: number }>;
+    assignItemsToCategory(categoryId: string, itemsId: string[]): Promise<number>
+    removeItemsfromCategory(categoryId: string): Promise<number>
     updateCategoryLeafStatus(categoryId: string, isLeaf: boolean): Promise<void>;
     updateCategory(id: string, request: updateCategoryRequest): Promise<CategoryData>;
     deleteCategory(id: string): Promise<CategoryData>;
     // Hierarchy operations
+    findTopLevelCategorieswithpage(page: number, pageSize: number): Promise<{ category: CategoryData[]; total: number }>;
+    findChildrenTreeByParentId(parentId: string | null): Promise<CategoryData[]>
+    findChildrenTreeByParentIdwithpage(page: number, pageSize: number, parentId: string | null): Promise<{ category: CategoryData[]; total: number }>;
     findTopLevelCategories(): Promise<CategoryData[]>;
     findCategoryWithChildren(id: string): Promise<CategoryData | null>;
     findCategoryWithSizeUnit(id: string): Promise<CategoryData | null>;
-    findChildrenTreeByParentId(id: string | null): Promise<CategoryData[]>;
     findCategoryWithTags(id: string): Promise<CategoryData | null>;
     findCategoryWithSizeUnitId(id: string, sizeUnitId: string): Promise<CategoryData | null>;
 }
@@ -79,7 +123,7 @@ export interface ICategoryRepository {
 export interface ICategoryService {
     // Category operations
     getAllCategories(): Promise<CategoryHierarchy[]>;
-    getAllCategoriesWithChildren(): Promise<CategoryHierarchy[]>;
+    getAllCategoriesWithChildren(page: number): Promise<CategoryListResult>;
     getChildrenByParentId(parentId?: string): Promise<CategoryHierarchy[]>;
     getCategoryById(id: string): Promise<CategoryData | null>;
     getCategoryByIdWithSizeUnits(id: string): Promise<CategoryData | null>;

@@ -79,6 +79,11 @@ export interface ItemImage {
   isPrimary: boolean;
 }
 
+export interface itemdropdown {
+  id: string,
+  nameTh: string,
+  nameEn: string,
+}
 export interface SearchResult {
   items: SearchItemWithImagesResult[];
   pagination: {
@@ -140,6 +145,7 @@ export interface UpdateVariantAuctionItemRequest {
 export interface IItemService {
   createItem(data: CreateItemRequest, userId: string): Promise<ItemDetails>;
   searchItems(request: SearchItemsRequest): Promise<SearchResult>;
+  getAllitem(): Promise<itemdropdown[]>
   getItemDetails(id: string, userId?: string): Promise<ItemDetails>;
   updateItem(
     id: string,
@@ -174,6 +180,7 @@ export interface ITagService {
 // Repository Interfaces
 export interface IItemRepository {
   create(data: CreateItemData): Promise<ItemDetails>;
+  findAll(): Promise<itemdropdown[]>;
   findById(id: string, userId?: string): Promise<any>;
   search(
     filters: SearchFilters

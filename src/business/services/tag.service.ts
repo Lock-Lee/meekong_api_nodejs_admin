@@ -2,7 +2,7 @@ import { injectable, inject } from "inversify";
 import { TYPES } from "../../shared/types/service.types";
 import { TagTargetType } from "../../../generated/prisma";
 import { ITagService } from "../interfaces/item.interfaces";
-import { CreateTagRequest, ITagRepository, PopularTagResult, TagMasterData } from "../interfaces/tag.interfaces";
+import { CreateTagRequest, ITagRepository, PopularTagResult, TagData, TagMasterData } from "../interfaces/tag.interfaces";
 import { Logger } from "@utils/logger";
 
 @injectable()
@@ -10,6 +10,18 @@ export class TagService implements ITagService {
   constructor(
     @inject(TYPES.TagRepository) private tagRepository: ITagRepository
   ) { }
+
+  async getAlltag(): Promise<TagData[] | null> {
+    Logger.info("Fetching all Tag with hierarchy");
+
+    const Tag = await this.tagRepository.getAlltag();
+
+    Logger.info("Tag retrieved successfully", {
+      categoryCount: Tag?.length
+    });
+
+    return Tag || null;
+  }
 
   /**
    * Process tags for an item - create tags, links, and update usage

@@ -46,7 +46,7 @@ class App {
           "http://localhost:5500", // for Socket.IO testing
           // "https://mywebsite.com", // your production url optional
         ],
-        methods: ["GET", "POST", "DELETE"],
+        methods: ["GET", "POST", "DELETE", "PATCH"],
         credentials: true,
       })
     );

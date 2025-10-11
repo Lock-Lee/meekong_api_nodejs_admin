@@ -26,9 +26,6 @@ export class CategoryRepository implements ICategoryRepository {
         return categories.map((category: any) => this.mapToCategoryData(category));
     }
 
-    /**
-     * Find top-level categories with children hierarchy
-     */
     async findTopLevelCategories(): Promise<CategoryData[]> {
         const categories = await this.prisma.category.findMany({
             where: {
@@ -37,6 +34,19 @@ export class CategoryRepository implements ICategoryRepository {
             },
             orderBy: { nameTh: "asc" },
             include: {
+                tag: {
+                    select: {
+                        id: true,
+                        name: true
+                    }
+                },
+                items: {
+                    select: {
+                        id: true,
+                        nameTh: true,
+                        nameEn: true
+                    }
+                },
                 children: {
                     where: { status: Status.ACTIVE },
                     select: {
@@ -46,6 +56,19 @@ export class CategoryRepository implements ICategoryRepository {
                         imageUrl: true,
                         level: true,
                         fullPath: true,
+                        tag: {
+                            select: {
+                                id: true,
+                                name: true
+                            }
+                        },
+                        items: {
+                            select: {
+                                id: true,
+                                nameTh: true,
+                                nameEn: true
+                            }
+                        },
                         children: {
                             where: { status: Status.ACTIVE },
                             select: {
@@ -55,6 +78,19 @@ export class CategoryRepository implements ICategoryRepository {
                                 imageUrl: true,
                                 level: true,
                                 fullPath: true,
+                                tag: {
+                                    select: {
+                                        id: true,
+                                        name: true
+                                    }
+                                },
+                                items: {
+                                    select: {
+                                        id: true,
+                                        nameTh: true,
+                                        nameEn: true
+                                    }
+                                },
                                 children: {
                                     where: { status: Status.ACTIVE },
                                     select: {
@@ -74,14 +110,116 @@ export class CategoryRepository implements ICategoryRepository {
                     orderBy: { nameTh: "asc" },
                 },
             },
-        });
-
-        return categories.map((category: any) => this.mapToCategoryDataWithChildren(category));
+        })
+        return categories.map((category: any) => this.mapToCategoryDataWithChildren(category))
     }
 
 
-    async findChildrenTreeByParentId(parentId: string | null): Promise<CategoryData[]> {
-        const children = await this.prisma.category.findMany({
+    /**
+     * Find top-level categories with children hierarchy
+     */
+    async findTopLevelCategorieswithpage(page: number, pageSize: number): Promise<{ category: CategoryData[]; total: number }> {
+        const skip = (page - 1) * pageSize;
+        const [categories, total] = await this.prisma.$transaction([this.prisma.category.findMany({
+            take: pageSize,
+            skip,
+            where: {
+                status: Status.ACTIVE,
+                level: 1,
+            },
+            orderBy: { nameTh: "asc" },
+            include: {
+                tag: {
+                    select: {
+                        id: true,
+                        name: true
+                    }
+                },
+                items: {
+                    select: {
+                        id: true,
+                        nameTh: true,
+                        nameEn: true
+                    }
+                },
+                children: {
+                    where: { status: Status.ACTIVE },
+                    select: {
+                        id: true,
+                        nameTh: true,
+                        nameEn: true,
+                        imageUrl: true,
+                        level: true,
+                        fullPath: true,
+                        tag: {
+                            select: {
+                                id: true,
+                                name: true
+                            }
+                        },
+                        items: {
+                            select: {
+                                id: true,
+                                nameTh: true,
+                                nameEn: true
+                            }
+                        },
+                        children: {
+                            where: { status: Status.ACTIVE },
+                            select: {
+                                id: true,
+                                nameTh: true,
+                                nameEn: true,
+                                imageUrl: true,
+                                level: true,
+                                fullPath: true,
+                                tag: {
+                                    select: {
+                                        id: true,
+                                        name: true
+                                    }
+                                },
+                                items: {
+                                    select: {
+                                        id: true,
+                                        nameTh: true,
+                                        nameEn: true
+                                    }
+                                },
+                                children: {
+                                    where: { status: Status.ACTIVE },
+                                    select: {
+                                        id: true,
+                                        nameTh: true,
+                                        nameEn: true,
+                                        imageUrl: true,
+                                        level: true,
+                                        fullPath: true,
+                                    },
+                                    orderBy: { nameTh: "asc" },
+                                },
+                            },
+                            orderBy: { nameTh: "asc" },
+                        },
+                    },
+                    orderBy: { nameTh: "asc" },
+                },
+            },
+        }), this.prisma.category.count({
+            where: {
+                status: Status.ACTIVE,
+                level: 1,
+            }
+        })]);
+        return { category: categories.map((category: any) => this.mapToCategoryDataWithChildren(category)), total }
+    }
+
+
+    async findChildrenTreeByParentIdwithpage(page: number, pageSize: number, parentId: string | null): Promise<{ category: CategoryData[]; total: number }> {
+        const skip = (page - 1) * pageSize;
+        const [categories, total] = await this.prisma.$transaction([this.prisma.category.findMany({
+            take: pageSize,
+            skip,
             where: { status: Status.ACTIVE, parentId },
             orderBy: { nameTh: "asc" },
             select: {
@@ -99,9 +237,35 @@ export class CategoryRepository implements ICategoryRepository {
                     },
                 },
             },
-        });
+        }), this.prisma.category.count({
+            where: { status: Status.ACTIVE, parentId },
+        })]);
 
-        return children.map((c: any) => this.mapToCategoryDataWithChildren(c));
+        return { category: categories.map((category: any) => this.mapToCategoryDataWithChildren(category)), total }
+    }
+
+    async findChildrenTreeByParentId(parentId: string | null): Promise<CategoryData[]> {
+        const categories = await this.prisma.category.findMany({
+
+            where: { status: Status.ACTIVE, parentId },
+            orderBy: { nameTh: "asc" },
+            select: {
+                id: true, nameTh: true, nameEn: true, imageUrl: true, level: true, fullPath: true,
+                children: {
+                    where: { status: Status.ACTIVE },
+                    orderBy: { nameTh: "asc" },
+                    select: {
+                        id: true, nameTh: true, nameEn: true, imageUrl: true, level: true, fullPath: true,
+                        children: {
+                            where: { status: Status.ACTIVE },
+                            orderBy: { nameTh: "asc" },
+                            select: { id: true, nameTh: true, nameEn: true, imageUrl: true, level: true, fullPath: true },
+                        },
+                    },
+                },
+            },
+        })
+        return categories.map((category: any) => this.mapToCategoryDataWithChildren(category))
     }
 
     /**
@@ -146,7 +310,6 @@ export class CategoryRepository implements ICategoryRepository {
                 },
             },
         });
-
         return category ? this.mapToCategoryDataWithChildren(category) : null;
     }
 
@@ -302,6 +465,83 @@ export class CategoryRepository implements ICategoryRepository {
         return result;
     }
 
+    async assignTagsToCategory(categoryId: string, tagIds: string[]): Promise<number> {
+        const result = await this.prisma.tag.updateMany({
+            where: { id: { in: tagIds } },
+            data: { categoryId },
+        });
+        return result.count;
+    }
+
+    async removeTagsfromCategory(categoryId: string): Promise<number> {
+        const result = await this.prisma.tag.updateMany({
+            where: { categoryId },
+            data: { categoryId: null },
+        });
+        return result.count;
+    }
+
+    async replaceCategoryTags(categoryId: string, tagIds: string[] = []) {
+        return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+            const removeRes = await tx.tag.updateMany({
+                where: { categoryId },
+                data: { categoryId: null },
+            });
+
+            let addResCount = 0;
+            if (tagIds.length > 0) {
+                const addRes = await tx.tag.updateMany({
+                    where: { id: { in: tagIds } },
+                    data: { categoryId },
+                });
+                addResCount = addRes.count;
+            }
+
+            return { removed: removeRes.count, added: addResCount };
+        });
+    }
+
+    async replaceCategoryItems(
+        categoryId: string,
+        itemIds: string[]
+    ): Promise<{ removed: number; added: number }> {
+        return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+            const removeRes = await tx.item.updateMany({
+                where: { categoryId },
+                data: { categoryId: null },
+            });
+
+            let addResCount = 0;
+            if (itemIds.length > 0) {
+                const addRes = await tx.item.updateMany({
+                    where: { id: { in: itemIds } },
+                    data: { categoryId },
+                });
+                addResCount = addRes.count;
+            }
+            return { removed: removeRes.count, added: addResCount };
+        });
+    }
+
+
+    async assignItemsToCategory(categoryId: string, itemsId: string[]): Promise<number> {
+        const result = await this.prisma.item.updateMany({
+            where: { id: { in: itemsId } },
+            data: { categoryId },
+        });
+        return result.count;
+    }
+
+    async removeItemsfromCategory(categoryId: string): Promise<number> {
+        const result = await this.prisma.item.updateMany({
+            where: { categoryId },
+            data: { categoryId: null },
+        });
+        return result.count;
+    }
+
+
+
     async upsertManyCategories(items: UpsertWorkItem[]): Promise<CategoryData[]> {
         return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
             const rows: CategoryData[] = [];
@@ -378,7 +618,7 @@ export class CategoryRepository implements ICategoryRepository {
         });
     }
 
-    async updateCategory(id: string, data: Omit<CategoryData, 'id' | 'createdAt' | 'updatedAt'>): Promise<CategoryData> {
+    async updateCategory(id: string, data: Omit<CategoryData, 'id' | 'createdAt' | 'updatedAt' | 'tag' | 'items'>): Promise<CategoryData> {
         const category = await this.prisma.category.update({
             data: {
                 nameTh: data.nameTh,
@@ -431,6 +671,8 @@ export class CategoryRepository implements ICategoryRepository {
             fullPath: category.fullPath || [],
             isLeaf: category.isLeaf,
             status: category.status,
+            tag: category.tag,
+            items: category.items,
             createdAt: category.createdAt,
             updatedAt: category.updatedAt,
         };
@@ -438,7 +680,6 @@ export class CategoryRepository implements ICategoryRepository {
 
     private mapToCategoryDataWithChildren(category: any): CategoryData {
         const baseData = this.mapToCategoryData(category);
-
         if (category.children) {
             baseData.children = category.children.map((child: any) =>
                 this.mapToCategoryDataWithChildren(child)

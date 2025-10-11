@@ -32,6 +32,21 @@ class ItemRouter extends BaseRouter {
       {
         /**
          * @swagger
+         * /api/item/dropdown:
+         *   get:
+         *     tags: [Item]
+         *     summary: Get all items
+         *     responses:
+         *       200:
+         *         description: Successful operation
+         */
+        method: "get",
+        path: "/dropdown",
+        handler: this.itemController.getAlldropdown.bind(this.itemController),
+      },
+      {
+        /**
+         * @swagger
          * /api/item/search:
          *   get:
          *     tags: [Item]
@@ -265,39 +280,39 @@ class ItemRouter extends BaseRouter {
         handler: this.itemController.update.bind(this.itemController),
       },
       {
-               /**
-         * @swagger
-         * /api/item/{itemId}:
-         *   delete:
-         *     tags: [Item]
-         *     summary: Delete item
-         *     security:
-         *       - bearerAuth: []
-         *     parameters:
-         *       - in: path
-         *         name: itemId
-         *         required: true
-         *         schema:
-         *           type: string
-         *           format: uuid
-         *         description: Item ID
-         *       - in: query
-         *         name: status
-         *         required: true
-         *         schema:
-         *           type: string
-         *           enum: [INACTIVE, DELETED]
-         *         description: Item status
-         *     responses:
-         *       200:
-         *         description: Item deleted successfully
-         *       401:
-         *         description: Unauthorized
-         *       403:
-         *         description: Permission denied (can only delete own items)
-         *       404:
-         *         description: Item not found
-         */
+        /**
+  * @swagger
+  * /api/item/{itemId}:
+  *   delete:
+  *     tags: [Item]
+  *     summary: Delete item
+  *     security:
+  *       - bearerAuth: []
+  *     parameters:
+  *       - in: path
+  *         name: itemId
+  *         required: true
+  *         schema:
+  *           type: string
+  *           format: uuid
+  *         description: Item ID
+  *       - in: query
+  *         name: status
+  *         required: true
+  *         schema:
+  *           type: string
+  *           enum: [INACTIVE, DELETED]
+  *         description: Item status
+  *     responses:
+  *       200:
+  *         description: Item deleted successfully
+  *       401:
+  *         description: Unauthorized
+  *       403:
+  *         description: Permission denied (can only delete own items)
+  *       404:
+  *         description: Item not found
+  */
         method: "delete",
         path: "/:itemId",
         middlewares: [AuthMiddleware.authenticateUser],

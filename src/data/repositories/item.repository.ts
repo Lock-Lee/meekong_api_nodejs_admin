@@ -9,6 +9,7 @@ import {
   UpdateItemVariantRequest,
   UpdateVariantAuctionItemRequest,
   ItemVariantUpdate,
+  itemdropdown,
 } from "../../business/interfaces/item.interfaces";
 import { IFileService } from "@business/interfaces/file.interfaces";
 import { inject } from "inversify";
@@ -19,7 +20,7 @@ export class ItemRepository implements IItemRepository {
   /**
    * Create a new item with generated code and variants
    */
-  constructor(@inject(TYPES.FileService) private fileService: IFileService) {}
+  constructor(@inject(TYPES.FileService) private fileService: IFileService) { }
   async create(data: CreateItemData): Promise<ItemDetails> {
     const itemCode = `ITEM-${Math.random()
       .toString(36)
@@ -145,6 +146,17 @@ export class ItemRepository implements IItemRepository {
     return this.mapToItemDetails(item);
   }
 
+  async findAll(): Promise<itemdropdown[]> {
+    const item = await prisma.item.findMany({
+      select: {
+        id: true,
+        nameTh: true,
+        nameEn: true,
+      },
+    });
+    return item
+  }
+
   /**
    * Find item by ID with all relations
    */
@@ -248,10 +260,10 @@ export class ItemRepository implements IItemRepository {
       ...item,
       auction: item.auction
         ? {
-            ...auctionWithoutBids,
-            hasUserBid,
-            AuctionParticipant: item.auction.AuctionParticipant || [],
-          }
+          ...auctionWithoutBids,
+          hasUserBid,
+          AuctionParticipant: item.auction.AuctionParticipant || [],
+        }
         : { AuctionParticipant: [] },
       imageList: images || [],
       tags,
@@ -440,10 +452,10 @@ export class ItemRepository implements IItemRepository {
           ...item,
           auction: item.auction
             ? {
-                ...auctionWithoutBids,
-                hasUserBid,
-                AuctionParticipant: item.auction.AuctionParticipant || [],
-              }
+              ...auctionWithoutBids,
+              hasUserBid,
+              AuctionParticipant: item.auction.AuctionParticipant || [],
+            }
             : { AuctionParticipant: [] },
           imageList: imagesByItemId[item.id] || [],
           tags,
@@ -726,7 +738,7 @@ export class ItemRepository implements IItemRepository {
     // Update auction fields if provided (ensure the auction belongs to the item)
     if (data.itemAuction && data.itemAuction.length > 0) {
       for (const a of data.itemAuction) {
-        let findAuction = await prisma.auction.findFirst({
+        const findAuction = await prisma.auction.findFirst({
           where: { itemId, id: a.auctionId },
         });
 
@@ -795,8 +807,8 @@ export class ItemRepository implements IItemRepository {
         // 1. ดึงข้อมูล item เพื่อเช็ค sellType
         const item = await tx.item.findUnique({
           where: { id },
-          select: { 
-            id: true, 
+          select: {
+            id: true,
             sellType: true,
             auction: { select: { id: true } }
           },
@@ -927,9 +939,9 @@ export class ItemRepository implements IItemRepository {
         email: item.seller.email,
         profile: item.seller.profile
           ? {
-              firstName: item.seller.profile.firstName,
-              lastName: item.seller.profile.lastName,
-            }
+            firstName: item.seller.profile.firstName,
+            lastName: item.seller.profile.lastName,
+          }
           : undefined,
       },
       category: {

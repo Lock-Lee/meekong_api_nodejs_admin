@@ -39,16 +39,26 @@ class CategoryRouter extends BaseRouter {
          *       - in: query
          *         name: parentId
          *         required: false
-         *         schema: { type: string }
-         *         description:
+         *         schema:
+         *           type: string
+         *         description: Parent category ID to fetch descendants for
+         *       - in: query
+         *         name: page
+         *         required: false
+         *         schema:
+         *           type: integer
+         *           minimum: 1
+         *           default: 1
+         *         description: Page number (1-based). Defaults to 1.
          *     responses:
-         *       200: { description: Successful operation }
+         *       200:
+         *         description: Successful operation
          */
-
         method: "get",
         path: "/children/tree",
-        handler: this.categoryController.getChildrenTreeByParentId.bind(this.categoryController),
+        handler: this.categoryController.getAllwithpage.bind(this.categoryController),
       },
+
       {
         /**
          * @swagger
@@ -156,41 +166,53 @@ class CategoryRouter extends BaseRouter {
 
       {
         /**
-         * @swagger
-         * /api/categories:
-         *   post:
-         *     tags: [Category]
-         *     summary: Create a new category
-         *     requestBody:
-         *       required: true
-         *       content:
-         *         multipart/form-data:
-         *           schema:
-         *             type: object
-         *             properties:
-         *               nameTh:
-         *                 type: string
-         *               nameEn:
-         *                 type: string
-         *               level:
-         *                 type: number
-         *               images:
-         *                 type: array
-         *                 items:
-         *                   type: string
-         *                   format: binary
-         *                 description: Images
-
-         *             required:
-         *               - nameTh
-         *               - nameEn
-         *               - level
-         *     responses:
-         *       201:
-         *         description: Category created successfully
-         *       400:
-         *         description: Invalid input
-         */
+       * @swagger
+       * /api/categories:
+       *   post:
+       *     tags: [Category]
+       *     summary: Create a new category
+       *     requestBody:
+       *       required: true
+       *       content:
+       *         multipart/form-data:
+       *           schema:
+       *             type: object
+       *             properties:
+       *               nameTh:
+       *                 type: string
+       *               nameEn:
+       *                 type: string
+       *               level:
+       *                 type: integer
+       *               parentId:
+       *                 type: string
+       *                 nullable: true
+       *               images:
+       *                 type: array
+       *                 items:
+       *                   type: string
+       *                   format: binary
+       *                 description: Images
+       *               tag:
+       *                 type: array
+       *                 items:
+       *                   type: string
+       *                 description: Array of Tag IDs to link
+       *               items:
+       *                 type: array
+       *                 items:
+       *                   type: string
+       *                 description: Array of items IDs to link
+       *             required:
+       *               - nameTh
+       *               - nameEn
+       *               - level
+       *     responses:
+       *       201:
+       *         description: Category created successfully
+       *       400:
+       *         description: Invalid input
+       */
         method: "post",
         path: "/",
         handler: this.categoryController.create.bind(this.categoryController),
@@ -260,7 +282,16 @@ class CategoryRouter extends BaseRouter {
          *                   type: string
          *                   format: binary
          *                 description: Images
-
+         *               tag:
+         *                 type: array
+         *                 items:
+         *                   type: string
+         *                 description: Array of Tag IDs to link
+         *               items:
+         *                 type: array
+         *                 items:
+         *                   type: string
+         *                 description: Array of items IDs to link
          *             required:
          *               - nameTh
          *               - nameEn

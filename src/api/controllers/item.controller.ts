@@ -21,7 +21,7 @@ import { Logger } from "../../shared/utils/logger";
 export class ItemController {
   constructor(
     @inject(TYPES.ItemService) private readonly itemService: IItemService
-  ) {}
+  ) { }
 
   /**
    * Create a new item
@@ -363,6 +363,26 @@ export class ItemController {
     }
   };
 
+  getAlldropdown = async (req: Request, res: Response) => {
+    try {
+
+      const result = await this.itemService.getAllitem();
+
+      return Send.success(res, result, "Items retrieved successfully.");
+    } catch (error) {
+      Logger.error("Error getting items", error, {
+        requestId: (req as any).requestId,
+        userId: req.userId,
+        query: req.query,
+      });
+
+      if (error instanceof BusinessError) {
+        return Send.error(res, null, error.message, error.statusCode);
+      }
+
+      return Send.error(res, null, "Failed to retrieve items.");
+    }
+  };
   /**
    * Update item variant (price and stock)
    */

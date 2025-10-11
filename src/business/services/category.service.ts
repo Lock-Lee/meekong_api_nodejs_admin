@@ -7,7 +7,8 @@ import {
     CategoryData,
     CreateCategoryRequest,
     CategoryHierarchy,
-    updateCategoryRequest
+    updateCategoryRequest,
+    CategoryListResult
 } from "../interfaces/category.interfaces";
 import { BusinessError, ValidationError } from "../../shared/errors/business.errors";
 import { Logger } from "../../shared/utils/logger";
@@ -24,27 +25,39 @@ export class CategoryService implements ICategoryService {
     async getAllCategories(): Promise<CategoryHierarchy[]> {
         Logger.info("Fetching all categories with hierarchy");
 
-        const categories = await this.categoryRepository.findTopLevelCategories();
-        const processedCategories = this.processCategories(categories);
+        const category = await this.categoryRepository.findTopLevelCategories();
+        const processedCategories = this.processCategories(category);
 
         Logger.info("Categories retrieved successfully", {
-            categoryCount: processedCategories.length
+            categoryCount: category.length
         });
-
         return this.buildCategoryHierarchy(processedCategories);
     }
 
-    async getAllCategoriesWithChildren(): Promise<CategoryHierarchy[]> {
+    async getAllCategoriesWithChildren(page: number, parentId?: string): Promise<CategoryListResult> {
+        const pageSize = 10;
         Logger.info("Fetching all categories with hierarchy");
+        const { category, total } =
+            parentId
+                ? await this.categoryRepository.findChildrenTreeByParentIdwithpage(page, pageSize, parentId)
+                : await this.categoryRepository.findTopLevelCategorieswithpage(page, pageSize);
 
-        const categories = await this.categoryRepository.findTopLevelCategories();
-        const processedCategories = this.processCategories(categories);
+
+        const processedCategories = this.processCategories(category);
 
         Logger.info("Categories retrieved successfully", {
-            categoryCount: processedCategories.length
+            categoryCount: total
         });
 
-        return this.buildCategoryHierarchy(processedCategories);
+        return {
+            items: this.buildCategoryHierarchy(processedCategories),
+            pagination: {
+                total,
+                page,
+                pageSize,
+                totalPages: Math.ceil(total / pageSize),
+            }
+        }
     }
     async getChildrenByParentId(parentId?: string): Promise<CategoryHierarchy[]> {
         Logger.info("Fetching children with hierarchy", { parentId: parentId ?? null });
@@ -144,7 +157,7 @@ export class CategoryService implements ICategoryService {
      * Create a new category
      */
     async createCategory(request: CreateCategoryRequest): Promise<CategoryData> {
-        const { nameTh, nameEn, imageUrl, parentId, level } = request;
+        const { nameTh, nameEn, imageUrl, parentId, level, tag, items } = request;
 
         Logger.info("Creating new category", { nameTh, nameEn, level, parentId });
 
@@ -174,6 +187,14 @@ export class CategoryService implements ICategoryService {
 
         const newCategory = await this.categoryRepository.createCategory(categoryData);
 
+        if (tag?.length) {
+            await this.categoryRepository.replaceCategoryTags(newCategory.id, tag);
+        }
+        if (items?.length) {
+            // await this.categoryRepository.replaceCategoryItems(newCategory.id, items);
+            await this.categoryRepository.assignItemsToCategory(newCategory.id, items);
+
+        }
         // 6. Update parent category leaf status if needed
         if (parentId && parentCategory && parentCategory.isLeaf) {
             await this.categoryRepository.updateCategoryLeafStatus(parentId, false);
@@ -226,7 +247,6 @@ export class CategoryService implements ICategoryService {
 
         // 5) Transactionally create & update parents’ leaf flags
         const created = await this.categoryRepository.createManyCategories(toCreate);
-
         return created;
     }
 
@@ -285,7 +305,7 @@ export class CategoryService implements ICategoryService {
    * Update a new category
    */
     async updateCategory(id: string, request: updateCategoryRequest): Promise<CategoryData> {
-        const { nameTh, nameEn, imageUrl, parentId, level } = request;
+        const { nameTh, nameEn, imageUrl, parentId, level, tag, items } = request;
 
         Logger.info("Update category", { nameTh, nameEn, level, parentId });
 
@@ -315,6 +335,14 @@ export class CategoryService implements ICategoryService {
 
         const newCategory = await this.categoryRepository.updateCategory(id, categoryData);
 
+        if (tag?.length) {
+            await this.categoryRepository.replaceCategoryTags(newCategory.id, tag);
+            // await this.categoryRepository.assignTagsToCategory(newCategory.id, tag);
+        }
+        if (items?.length) {
+            // await this.categoryRepository.replaceCategoryItems(newCategory.id, items);
+            await this.categoryRepository.assignItemsToCategory(newCategory.id, items);
+        }
         // 6. Update parent category leaf status if needed
         if (parentId && parentCategory && parentCategory.isLeaf) {
             await this.categoryRepository.updateCategoryLeafStatus(parentId, false);
@@ -431,6 +459,8 @@ export class CategoryService implements ICategoryService {
             nameEn: category.nameEn,
             imageUrl: category.imageUrl,
             level: category.level,
+            tag: category.tag,
+            items: category.items,
             fullPath: category.fullPath,
             children: category.children ? category.children.map(child => this.mapToHierarchy(child)) : [],
         };

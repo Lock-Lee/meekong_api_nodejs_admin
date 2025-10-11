@@ -11,8 +11,8 @@ import {
   SearchResult,
   UpdateItemVariantRequest,
   UpdateVariantAuctionItemRequest,
-  ItemVariant,
   ItemVariantUpdate,
+  itemdropdown,
 } from "../interfaces/item.interfaces";
 import {
   IInventoryService,
@@ -29,7 +29,6 @@ import {
   ItemNotOwnedError,
   MaxTagsExceededError,
   InvalidShippingDurationError,
-  InvalidItemVariantError,
 } from "../../shared/errors/business.errors";
 import { Logger } from "@utils/logger";
 
@@ -40,7 +39,7 @@ export class ItemService implements IItemService {
     @inject(TYPES.TagService) private tagService: ITagService,
     @inject(TYPES.FileService) private fileService: IFileService,
     @inject(TYPES.InventoryService) private inventoryService: IInventoryService
-  ) {}
+  ) { }
 
   /**
    * Create a new item with tags and images
@@ -184,6 +183,9 @@ export class ItemService implements IItemService {
     return this.itemRepository.findById(id, userId);
   }
 
+  async getAllitem(): Promise<itemdropdown[]> {
+    return this.itemRepository.findAll();
+  }
   /**
    * Update an existing item
    */

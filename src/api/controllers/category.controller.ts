@@ -75,6 +75,8 @@ export class CategoryController {
    */
   async getAll(req: Request, res: Response): Promise<void> {
     try {
+
+
       Logger.info("Fetching all categories", { requestId: req.id });
 
       const categories = await this.categoryService.getAllCategories();
@@ -99,15 +101,24 @@ export class CategoryController {
     }
   }
 
-  async getChildrenTreeByParentId(req: Request, res: Response): Promise<void> {
+  async getAllwithpage(req: Request, res: Response): Promise<void> {
     try {
+      const validation = categorySchema.listCategoryQuery.safeParse(req.query);
+      if (!validation.success) {
+        Logger.warn("Invalid query parameters for brand list", {
+          errors: validation.error.issues,
+          requestId: req.id
+        });
+        return Send.error(res, validation.error.issues, "Invalid query parameters.");
+      }
 
-      Logger.info("Fetching all categories", { requestId: req.id });
-      const parentId = (req.query.parentId as string) || "";
-      const categories = await this.categoryService.getChildrenByParentId(parentId);
+      const { page } = validation.data;
+      Logger.info("Fetching all categories", { page, requestId: req.id });
+
+      const categories = await this.categoryService.getAllCategoriesWithChildren(page);
 
       Logger.info("Categories retrieved successfully", {
-        categoryCount: categories.length,
+        categoryCount: categories.items.length,
         requestId: req.id
       });
 
@@ -124,7 +135,6 @@ export class CategoryController {
 
       return Send.error(res, null, "Failed to fetch categories.");
     }
-
   }
 
 
@@ -315,23 +325,53 @@ export class CategoryController {
    */
   async create(req: Request, res: Response): Promise<void> {
     try {
-      const body = {
-        ...req.body,
-        level: parseInt(req.body.level)
+      // 1) normalize level
+      const body = { ...req.body, level: parseInt(req.body.level) };
+
+      const rawTag = (req.body.tag ?? req.body["tag[]"]) as unknown;
+      let tagIds: string[] | undefined;
+      if (Array.isArray(rawTag)) {
+        tagIds = rawTag as string[];
+      } else if (typeof rawTag === "string" && rawTag.trim().length) {
+        try {
+          tagIds = rawTag.trim().startsWith("[")
+            ? JSON.parse(rawTag)
+            : rawTag.split(",").map(s => s.trim()).filter(Boolean);
+        } catch {
+          tagIds = [rawTag];
+        }
       }
-      const bodyValidation = categorySchema.createCategory.safeParse(body);
+
+      const rawItems = (req.body.items ?? req.body["items[]"]) as unknown;
+      let itemsIds: string[] | undefined;
+      if (Array.isArray(rawItems)) {
+        itemsIds = rawItems as string[];
+      } else if (typeof rawItems === "string" && rawItems.trim().length) {
+        try {
+          itemsIds = rawItems.trim().startsWith("[")
+            ? JSON.parse(rawItems)
+            : rawItems.split(",").map(s => s.trim()).filter(Boolean);
+        } catch {
+          itemsIds = [rawItems];
+        }
+      }
+
+      const bodyValidation = categorySchema.createCategory.safeParse({ ...body, tag: tagIds, items: itemsIds });
       if (!bodyValidation.success) {
         Logger.warn("Invalid request body for category creation", {
           errors: bodyValidation.error.errors,
-          requestId: req.id
+          requestId: req.id,
         });
         return Send.error(res, bodyValidation.error.errors, "Invalid request body.");
       }
+
+      // 3) handle images upload -> set imageUrl
       const images = req.files?.images as UploadedFile | undefined;
       if (images) {
         const uploadResult = await this.uploadCategoryImage(images);
         bodyValidation.data.imageUrl = uploadResult.imageUrl;
       }
+
       const categoryData = { ...bodyValidation.data };
 
       Logger.info("Creating new category", {
@@ -339,16 +379,17 @@ export class CategoryController {
         nameEn: categoryData.nameEn,
         level: categoryData.level,
         parentId: categoryData.parentId,
-        requestId: req.id
+        requestId: req.id,
       });
 
+      // 4) call service (includes tagIds)
       const newCategory = await this.categoryService.createCategory(categoryData);
 
       Logger.info("Category created successfully", {
         categoryId: newCategory.id,
         nameTh: newCategory.nameTh,
         level: newCategory.level,
-        requestId: req.id
+        requestId: req.id,
       });
 
       return Send.success(res, newCategory, "Category created successfully.");
@@ -356,16 +397,16 @@ export class CategoryController {
       Logger.error("Failed to create category", {
         error: (error as Error).message,
         categoryName: req.body?.nameTh || req.body?.nameEn,
-        requestId: req.id
+        requestId: req.id,
       });
 
       if (error instanceof BusinessError) {
         return Send.error(res, null, error.message, error.statusCode);
       }
-
       return Send.error(res, null, "Failed to create category.");
     }
   }
+
   async createMany(req: Request, res: Response): Promise<void> {
     try {
       // Accept either JSON array or multipart with `items` JSON string
@@ -505,6 +546,34 @@ export class CategoryController {
         ...req.body,
         level: parseInt(req.body.level)
       }
+
+      const rawTag = (req.body.tag ?? req.body["tag[]"]) as unknown;
+      let tagIds: string[] | undefined;
+      if (Array.isArray(rawTag)) {
+        tagIds = rawTag as string[];
+      } else if (typeof rawTag === "string" && rawTag.trim().length) {
+        try {
+          tagIds = rawTag.trim().startsWith("[")
+            ? JSON.parse(rawTag)
+            : rawTag.split(",").map(s => s.trim()).filter(Boolean);
+        } catch {
+          tagIds = [rawTag];
+        }
+      }
+
+      const rawItems = (req.body.items ?? req.body["items[]"]) as unknown;
+      let itemsIds: string[] | undefined;
+      if (Array.isArray(rawItems)) {
+        itemsIds = rawItems as string[];
+      } else if (typeof rawItems === "string" && rawItems.trim().length) {
+        try {
+          itemsIds = rawItems.trim().startsWith("[")
+            ? JSON.parse(rawItems)
+            : rawItems.split(",").map(s => s.trim()).filter(Boolean);
+        } catch {
+          itemsIds = [rawItems];
+        }
+      }
       const paramsValidation = categorySchema.updateCategoryParams.safeParse(req.params);
       if (!paramsValidation.success) {
         Logger.warn("Invalid parameters for category update", {
@@ -514,7 +583,7 @@ export class CategoryController {
         return Send.error(res, paramsValidation.error.issues, "Invalid parameters.");
       }
 
-      const bodyValidation = categorySchema.updateCategory.safeParse(body);
+      const bodyValidation = categorySchema.updateCategory.safeParse({ ...body, tag: tagIds, items: itemsIds });
       if (!bodyValidation.success) {
         Logger.warn("Invalid request body for category creation", {
           errors: bodyValidation.error.errors,

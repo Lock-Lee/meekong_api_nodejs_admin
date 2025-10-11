@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+export const listCategoryQuerySchema = z.object({
+    page: z.string().optional().default("1").transform(Number),
+});
+
 export const getCategoryByIdParamsSchema = z.object({
     id: z.string().uuid("Invalid category ID format"),
 });
@@ -19,6 +23,8 @@ export const createCategoryBodySchema = z.object({
     imageUrl: z.string().url("Invalid image URL").optional(),
     parentId: z.string().uuid("Invalid parent ID format").optional(),
     level: z.number().int().min(1).max(4, "Category level must be between 1 and 4"),
+    tag: z.array(z.string().uuid()).optional(),
+    items: z.array(z.string().uuid()).optional(),
 });
 
 export const updateCategoryBodySchema = z.object({
@@ -26,7 +32,9 @@ export const updateCategoryBodySchema = z.object({
     nameEn: z.string().min(1, "English name is required"),
     imageUrl: z.string().url("Invalid image URL").optional(),
     parentId: z.string().uuid("Invalid parent ID format").optional(),
-    level: z.number().int().min(1).max(4, "Category level must be between 1 and 4")
+    level: z.number().int().min(1).max(4, "Category level must be between 1 and 4"),
+    tag: z.array(z.string().uuid()).optional(),
+    items: z.array(z.string().uuid()).optional(),
 });
 
 export const updateCategoryParamsSchema = z.object({
@@ -39,5 +47,6 @@ export default {
     getCategoryParentIdParams: getCategoryParentIdParamsSchema,
     createCategory: createCategoryBodySchema,
     updateCategory: updateCategoryBodySchema,
-    updateCategoryParams: updateCategoryParamsSchema
+    updateCategoryParams: updateCategoryParamsSchema,
+    listCategoryQuery: listCategoryQuerySchema
 };
