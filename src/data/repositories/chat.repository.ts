@@ -2,7 +2,7 @@ import { inject, injectable } from 'inversify';
 import { TYPES } from '@shared/types/service.types';
 import { IChatRepository, SendMessageData, ChatMessageWithReply } from '@business/interfaces/chat.interfaces';
 import { SocketService } from '@shared/infra/socket/socket.service';
-import { ChatConversation, ChatMessage, ChatType, PrismaClient, User, Shop } from '../../../generated/prisma';
+import { ChatConversation, ChatMessage, ChatType, PrismaClient, User, Shop, Prisma } from '../../../generated/prisma';
 import appConfig from '@shared/config/app.config';
 
 interface ChatConversationWithCount extends Omit<ChatConversation, '_count'> {
@@ -59,7 +59,7 @@ export class ChatRepository implements IChatRepository {
             }
         }
 
-        return this.prisma.chatConversation.create({
+        const conversation = await this.prisma.chatConversation.create({
             data: {
                 type: data.type,
                 userId: data.userId,
@@ -69,6 +69,19 @@ export class ChatRepository implements IChatRepository {
                 status: 'ACTIVE'
             }
         });
+
+        // Notify all participants about the new conversation
+        if (data.userId) {
+            this.socketService.emitConversationListUpdate(data.userId);
+        }
+        if (data.shopId) {
+            this.socketService.emitConversationListUpdate(data.shopId);
+        }
+        if (data.adminUserId) {
+            this.socketService.emitConversationListUpdate(data.adminUserId);
+        }
+
+        return conversation;
     }
 
     async sendMessage(data: SendMessageData): Promise<ChatMessage> {
@@ -97,6 +110,12 @@ export class ChatRepository implements IChatRepository {
                 throw new Error("Cannot reply to message from different conversation");
             }
         }
+
+        // Check if this is the first message in the conversation
+        const messageCount = await this.prisma.chatMessage.count({
+            where: { conversationId: data.conversationId }
+        });
+        const isFirstMessage = messageCount === 0;
 
         const message = await this.prisma.chatMessage.create({
             data: {
@@ -129,6 +148,19 @@ export class ChatRepository implements IChatRepository {
 
         this.socketService.emitNewMessage(data.conversationId, message);
 
+        // If this is the first message, notify all participants about the conversation update
+        if (isFirstMessage && message.conversation) {
+            if (message.conversation.userId) {
+                this.socketService.emitConversationListUpdate(message.conversation.userId);
+            }
+            if (message.conversation.shopId) {
+                this.socketService.emitConversationListUpdate(message.conversation.shopId);
+            }
+            if (message.conversation.adminUserId) {
+                this.socketService.emitConversationListUpdate(message.conversation.adminUserId);
+            }
+        }
+
         return message;
     }
 
@@ -150,22 +182,76 @@ export class ChatRepository implements IChatRepository {
         return this.sendMessage(data);
     }
 
-    async getConversations(userId: string): Promise<ChatConversationWithCount[]> {
+    async getConversations(userId: string, keyword?: string): Promise<ChatConversationWithCount[]> {
         const conversations = await this.prisma.chatConversation.findMany({
             where: {
                 OR: [
                     { userId: userId },
                     { adminUserId: userId }
                 ],
-                status: 'ACTIVE'
+                status: 'ACTIVE',
+                ...(keyword && {
+                    OR: [
+                        { title: { contains: keyword, mode: 'insensitive' } },
+                        { lastMessage: { contains: keyword, mode: 'insensitive' } },
+                        {
+                            user: {
+                                OR: [
+                                    { email: { contains: keyword, mode: 'insensitive' } },
+                                    {
+                                        profile: {
+                                            OR: [
+                                                { firstName: { contains: keyword, mode: 'insensitive' } },
+                                                { lastName: { contains: keyword, mode: 'insensitive' } }
+                                            ]
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            shop: {
+                                name: { contains: keyword, mode: 'insensitive' }
+                            }
+                        },
+                        {
+                            adminUser: {
+                                OR: [
+                                    { email: { contains: keyword, mode: 'insensitive' } },
+                                    {
+                                        profile: {
+                                            OR: [
+                                                { firstName: { contains: keyword, mode: 'insensitive' } },
+                                                { lastName: { contains: keyword, mode: 'insensitive' } }
+                                            ]
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                })
             },
-            orderBy: {
-                lastMessageAt: 'desc'
-            },
+            orderBy: [
+                {
+                    lastMessageAt: { sort: 'desc', nulls: 'first' }
+                },
+                {
+                    createdAt: 'desc'
+                }
+            ],
             include: {
-                user: true,
+                user: {
+                    include: {
+                        profile: true
+                    }
+                },
                 shop: true,
-                adminUser: true,
+                adminUser: {
+                    include: {
+                        profile: true
+                    }
+                },
                 messages: true,
                 _count: {
                     select: {
@@ -189,19 +275,73 @@ export class ChatRepository implements IChatRepository {
         }));
     }
 
-    async getConversationsForShop(shopId: string): Promise<ChatConversationWithCount[]> {
+    async getConversationsForShop(shopId: string, keyword?: string): Promise<ChatConversationWithCount[]> {
         const conversations = await this.prisma.chatConversation.findMany({
             where: {
                 shopId: shopId,
-                status: 'ACTIVE'
+                status: 'ACTIVE',
+                ...(keyword && {
+                    OR: [
+                        { title: { contains: keyword, mode: 'insensitive' } },
+                        { lastMessage: { contains: keyword, mode: 'insensitive' } },
+                        {
+                            user: {
+                                OR: [
+                                    { email: { contains: keyword, mode: 'insensitive' } },
+                                    {
+                                        profile: {
+                                            OR: [
+                                                { firstName: { contains: keyword, mode: 'insensitive' } },
+                                                { lastName: { contains: keyword, mode: 'insensitive' } }
+                                            ]
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            shop: {
+                                name: { contains: keyword, mode: 'insensitive' }
+                            }
+                        },
+                        {
+                            adminUser: {
+                                OR: [
+                                    { email: { contains: keyword, mode: 'insensitive' } },
+                                    {
+                                        profile: {
+                                            OR: [
+                                                { firstName: { contains: keyword, mode: 'insensitive' } },
+                                                { lastName: { contains: keyword, mode: 'insensitive' } }
+                                            ]
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                })
             },
-            orderBy: {
-                lastMessageAt: 'desc'
-            },
+            orderBy: [
+                {
+                    lastMessageAt: { sort: 'desc', nulls: 'first' }
+                },
+                {
+                    createdAt: 'desc'
+                }
+            ],
             include: {
-                user: true,
+                user: {
+                    include: {
+                        profile: true
+                    }
+                },
                 shop: true,
-                adminUser: true,
+                adminUser: {
+                    include: {
+                        profile: true
+                    }
+                },
                 messages: true,
                 _count: {
                     select: {
@@ -248,12 +388,18 @@ export class ChatRepository implements IChatRepository {
         });
 
         // Helper function to process attachments - convert relative URL to full URL
-        const processAttachments = (attachments: string | null): string | null => {
-            if (attachments && !attachments.startsWith('http')) {
+        // Handle JsonValue type from Prisma (can be string, number, boolean, null, array, or object)
+        const processAttachments = (attachments: Prisma.JsonValue): string | null => {
+            if (!attachments) return null;
+
+            // Convert JsonValue to string if it's a string type
+            const attachmentStr = typeof attachments === 'string' ? attachments : null;
+
+            if (attachmentStr && !attachmentStr.startsWith('http')) {
                 // If attachments is a relative URL, convert to full URL
-                return `${appConfig.apiBase}${attachments}`;
+                return `${appConfig.apiBase}${attachmentStr}`;
             }
-            return attachments;
+            return attachmentStr;
         };
 
         // Process messages to add full URL to attachments

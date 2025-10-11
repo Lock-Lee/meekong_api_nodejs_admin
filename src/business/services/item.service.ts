@@ -14,16 +14,22 @@ import {
   ItemVariant,
   ItemVariantUpdate,
 } from "../interfaces/item.interfaces";
-import { IInventoryService, CreateInventoryLogData } from "../interfaces/inventory.interfaces";
+import {
+  IInventoryService,
+  CreateInventoryLogData,
+} from "../interfaces/inventory.interfaces";
 import { TYPES } from "../../shared/types/service.types";
-import { IFileService, UploadResult } from "@business/interfaces/file.interfaces";
+import {
+  IFileService,
+  UploadResult,
+} from "@business/interfaces/file.interfaces";
 import { InventoryAction } from "../../../generated/prisma";
 import {
   BusinessError,
   ItemNotOwnedError,
   MaxTagsExceededError,
   InvalidShippingDurationError,
-  InvalidItemVariantError
+  InvalidItemVariantError,
 } from "../../shared/errors/business.errors";
 import { Logger } from "@utils/logger";
 
@@ -34,12 +40,15 @@ export class ItemService implements IItemService {
     @inject(TYPES.TagService) private tagService: ITagService,
     @inject(TYPES.FileService) private fileService: IFileService,
     @inject(TYPES.InventoryService) private inventoryService: IInventoryService
-  ) { }
+  ) {}
 
   /**
    * Create a new item with tags and images
    */
-  async createItem(data: CreateItemRequest, userId: string): Promise<ItemDetails> {
+  async createItem(
+    data: CreateItemRequest,
+    userId: string
+  ): Promise<ItemDetails> {
     try {
       // 1. Validate business rules
       await this.validateCreateItem(data);
@@ -108,16 +117,28 @@ export class ItemService implements IItemService {
       }
 
       // Handle Prisma foreign key constraint errors
-      if (error?.code === 'P2003') {
+      if (error?.code === "P2003") {
         const constraint = error.meta?.constraint;
-        if (constraint === 'Item_brandId_fkey') {
-          throw new BusinessError("Invalid brand ID provided", "VALIDATION_ERROR");
-        } else if (constraint === 'Item_categoryId_fkey') {
-          throw new BusinessError("Invalid category ID provided", "VALIDATION_ERROR");
-        } else if (constraint?.includes('sizeUnitId')) {
-          throw new BusinessError("Invalid size unit ID provided", "VALIDATION_ERROR");
+        if (constraint === "Item_brandId_fkey") {
+          throw new BusinessError(
+            "Invalid brand ID provided",
+            "VALIDATION_ERROR"
+          );
+        } else if (constraint === "Item_categoryId_fkey") {
+          throw new BusinessError(
+            "Invalid category ID provided",
+            "VALIDATION_ERROR"
+          );
+        } else if (constraint?.includes("sizeUnitId")) {
+          throw new BusinessError(
+            "Invalid size unit ID provided",
+            "VALIDATION_ERROR"
+          );
         }
-        throw new BusinessError("Invalid reference ID provided", "VALIDATION_ERROR");
+        throw new BusinessError(
+          "Invalid reference ID provided",
+          "VALIDATION_ERROR"
+        );
       }
 
       // Fallback generic error
@@ -166,7 +187,11 @@ export class ItemService implements IItemService {
   /**
    * Update an existing item
    */
-  async updateItem(id: string, data: Partial<CreateItemRequest>, userId: string): Promise<ItemDetails> {
+  async updateItem(
+    id: string,
+    data: Partial<CreateItemRequest>,
+    userId: string
+  ): Promise<ItemDetails> {
     try {
       // 1. Validate ownership (business rule)
       const existingItem = await this.itemRepository.findById(id);
@@ -198,8 +223,6 @@ export class ItemService implements IItemService {
         status: data.status,
       };
 
-
-
       const updatedItem = await this.itemRepository.update(id, updateData);
 
       // 5. Update tags if provided (use differential update)
@@ -216,11 +239,14 @@ export class ItemService implements IItemService {
       if (updatedItem.itemVariants && updatedItem.itemVariants.length > 0) {
         for (const variant of updatedItem.itemVariants) {
           // Get the previous stock level
-          const currentStock = await this.inventoryService.getCurrentStock(variant.id);
+          const currentStock = await this.inventoryService.getCurrentStock(
+            variant.id
+          );
 
           if (variant.stockQuantity !== currentStock) {
             const difference = variant.stockQuantity - currentStock;
-            const action = difference > 0 ? InventoryAction.ADD : InventoryAction.REMOVE;
+            const action =
+              difference > 0 ? InventoryAction.ADD : InventoryAction.REMOVE;
             const quantity = Math.abs(difference);
 
             if (difference !== 0) {
@@ -246,16 +272,28 @@ export class ItemService implements IItemService {
       Logger.error("Failed to update item", error);
 
       // Handle Prisma foreign key constraint errors
-      if (error.code === 'P2003') {
+      if (error.code === "P2003") {
         const constraint = error.meta?.constraint;
-        if (constraint === 'Item_brandId_fkey') {
-          throw new BusinessError("Invalid brand ID provided", "VALIDATION_ERROR");
-        } else if (constraint === 'Item_categoryId_fkey') {
-          throw new BusinessError("Invalid category ID provided", "VALIDATION_ERROR");
-        } else if (constraint?.includes('sizeUnitId')) {
-          throw new BusinessError("Invalid size unit ID provided", "VALIDATION_ERROR");
+        if (constraint === "Item_brandId_fkey") {
+          throw new BusinessError(
+            "Invalid brand ID provided",
+            "VALIDATION_ERROR"
+          );
+        } else if (constraint === "Item_categoryId_fkey") {
+          throw new BusinessError(
+            "Invalid category ID provided",
+            "VALIDATION_ERROR"
+          );
+        } else if (constraint?.includes("sizeUnitId")) {
+          throw new BusinessError(
+            "Invalid size unit ID provided",
+            "VALIDATION_ERROR"
+          );
         }
-        throw new BusinessError("Invalid reference ID provided", "VALIDATION_ERROR");
+        throw new BusinessError(
+          "Invalid reference ID provided",
+          "VALIDATION_ERROR"
+        );
       }
 
       throw new BusinessError("Failed to update item", "INTERNAL_SERVER_ERROR");
@@ -288,7 +326,10 @@ export class ItemService implements IItemService {
         throw error;
       }
 
-      throw new BusinessError("Failed to update item variant", "INTERNAL_SERVER_ERROR");
+      throw new BusinessError(
+        "Failed to update item variant",
+        "INTERNAL_SERVER_ERROR"
+      );
     }
   }
 
@@ -301,8 +342,11 @@ export class ItemService implements IItemService {
     userId: string
   ): Promise<ItemVariantUpdate> {
     try {
-
-      const updatedItem = await this.itemRepository.updateVariantAuctionItem(id, data, userId);
+      const updatedItem = await this.itemRepository.updateVariantAuctionItem(
+        id,
+        data,
+        userId
+      );
 
       return updatedItem;
     } catch (error: any) {
@@ -312,7 +356,10 @@ export class ItemService implements IItemService {
         throw error;
       }
 
-      throw new BusinessError("Failed to update auction item", "INTERNAL_SERVER_ERROR");
+      throw new BusinessError(
+        "Failed to update auction item",
+        "INTERNAL_SERVER_ERROR"
+      );
     }
   }
 
@@ -338,7 +385,10 @@ export class ItemService implements IItemService {
   /**
    * Get search suggestions
    */
-  async getSearchSuggestions(query: string, limit: number = 5): Promise<string[]> {
+  async getSearchSuggestions(
+    query: string,
+    limit: number = 5
+  ): Promise<string[]> {
     if (!query || query.trim().length < 2) {
       return [];
     }
@@ -351,11 +401,11 @@ export class ItemService implements IItemService {
    */
   private async validateCreateItem(data: CreateItemRequest): Promise<void> {
     // Required fields validation
-    if (!data.brandId || data.brandId.trim() === '') {
+    if (!data.brandId || data.brandId.trim() === "") {
       throw new BusinessError("Brand ID is required");
     }
 
-    if (!data.categoryId || data.categoryId.trim() === '') {
+    if (!data.categoryId || data.categoryId.trim() === "") {
       throw new BusinessError("Category ID is required");
     }
 
@@ -364,7 +414,10 @@ export class ItemService implements IItemService {
       throw new MaxTagsExceededError();
     }
 
-    if (data.shippingDuration && (data.shippingDuration < 1 || data.shippingDuration > 30)) {
+    if (
+      data.shippingDuration &&
+      (data.shippingDuration < 1 || data.shippingDuration > 30)
+    ) {
       throw new InvalidShippingDurationError();
     }
     // Per request: do not validate nameTh/nameEn/itemVariants at service level.
@@ -374,13 +427,21 @@ export class ItemService implements IItemService {
   /**
    * Business rule: Validate item update
    */
-  private async validateUpdateItem(data: Partial<CreateItemRequest>): Promise<void> {
+  private async validateUpdateItem(
+    data: Partial<CreateItemRequest>
+  ): Promise<void> {
     // Required fields validation (only if provided)
-    if (data.brandId !== undefined && (!data.brandId || data.brandId.trim() === '')) {
+    if (
+      data.brandId !== undefined &&
+      (!data.brandId || data.brandId.trim() === "")
+    ) {
       throw new BusinessError("Brand ID cannot be empty");
     }
 
-    if (data.categoryId !== undefined && (!data.categoryId || data.categoryId.trim() === '')) {
+    if (
+      data.categoryId !== undefined &&
+      (!data.categoryId || data.categoryId.trim() === "")
+    ) {
       throw new BusinessError("Category ID cannot be empty");
     }
 
@@ -389,11 +450,11 @@ export class ItemService implements IItemService {
       throw new MaxTagsExceededError();
     }
 
-    if (data.shippingDuration && (data.shippingDuration < 1 || data.shippingDuration > 30)) {
+    if (
+      data.shippingDuration &&
+      (data.shippingDuration < 1 || data.shippingDuration > 30)
+    ) {
       throw new InvalidShippingDurationError();
     }
-
-
   }
-
 }

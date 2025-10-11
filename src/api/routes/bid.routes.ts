@@ -86,6 +86,37 @@ class BidRouter extends BaseRouter {
         path: "/:id",
         handler: this.bidController.getBidById.bind(this.bidController),
       },
+      {
+        /**
+         * @swagger
+         * /api/bid/cancel/{id}:
+         *   delete:
+         *     tags: [Bid]
+         *     summary: Cancel a bid
+         *     security:
+         *       - bearerAuth: []
+         *     parameters:
+         *       - in: path
+         *         name: id
+         *         required: true
+         *         schema:
+         *           type: string
+         *         description: Bid ID
+         *     responses:
+         *       200:
+         *         description: Bid canceled successfully
+         *       401:
+         *         description: Unauthorized
+         *       403:
+         *         description: Forbidden - Not authorized to cancel this bid
+         *       404:
+         *         description: Bid not found
+         */
+        method: "delete",
+        path: "/:id",
+        middlewares: [AuthMiddleware.authenticateUser],
+        handler: this.bidController.cancelBid.bind(this.bidController),
+      },
     ];
   }
 }

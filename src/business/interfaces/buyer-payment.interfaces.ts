@@ -144,6 +144,16 @@ export interface SourceResponse {
     // ...สามารถเพิ่ม field อื่นๆ ตาม Omise API response...
 }
 
+export interface RefundResponse {
+    id: string;           // ID ของ refund
+    object: string;       // "refund"
+    amount: number;       // จำนวนเงินที่คืน (สตางค์)
+    currency: string;     // สกุลเงิน
+    charge: string;       // charge ID ที่ทำการคืนเงิน
+    transaction: string;  // transaction ID
+    created: string;      // วันที่สร้าง
+}
+
 export interface IBuyerPaymentRepository {
     /**
      * สร้าง token จากข้อมูลบัตร  and ผูก token เข้ากับ customer (ใช้ Omise.customers.create)
@@ -203,6 +213,11 @@ export interface IBuyerPaymentRepository {
      * ดึงข้อมูล capability จาก Omise API
      */
     getCapability(): Promise<CapabilityResponse>;
+
+    /**
+     * คืนเงินจาก charge
+     */
+    refundCharge(chargeId: string, amount?: number): Promise<RefundResponse>;
 }
 
 export interface IBuyerPaymentService {
@@ -257,4 +272,9 @@ export interface IBuyerPaymentService {
      * ดึงข้อมูล capability จาก Omise API
      */
     getCapability(): Promise<CapabilityResponse>;
+
+    /**
+     * คืนเงินจาก charge
+     */
+    refundCharge(chargeId: string, amount?: number): Promise<RefundResponse>;
 }

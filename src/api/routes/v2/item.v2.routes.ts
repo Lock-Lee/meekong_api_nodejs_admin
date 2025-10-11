@@ -34,6 +34,108 @@ class ItemV2Router extends BaseRouter {
                  *     responses:
                  *       200:
                  *         description: Item retrieved successfully
+                 *         content:
+                 *           application/json:
+                 *             schema:
+                 *               type: object
+                 *               properties:
+                 *                 id:
+                 *                   type: string
+                 *                   format: uuid
+                 *                 nameTh:
+                 *                   type: string
+                 *                 nameEn:
+                 *                   type: string
+                 *                 descriptionTh:
+                 *                   type: string
+                 *                 descriptionEn:
+                 *                   type: string
+                 *                 itemType:
+                 *                   type: string
+                 *                   enum: [NEW, USED]
+                 *                 sellType:
+                 *                   type: string
+                 *                   enum: [NORMAL, AUCTION, SATISFY, RFQ]
+                 *                 shippingDuration:
+                 *                   type: integer
+                 *                 brand:
+                 *                   type: object
+                 *                   properties:
+                 *                     id:
+                 *                       type: string
+                 *                     nameTh:
+                 *                       type: string
+                 *                     nameEn:
+                 *                       type: string
+                 *                 category:
+                 *                   type: object
+                 *                   properties:
+                 *                     id:
+                 *                       type: string
+                 *                     nameTh:
+                 *                       type: string
+                 *                     nameEn:
+                 *                       type: string
+                 *                 itemVariants:
+                 *                   type: array
+                 *                   items:
+                 *                     type: object
+                 *                     properties:
+                 *                       id:
+                 *                         type: string
+                 *                       price:
+                 *                         type: number
+                 *                       stockQuantity:
+                 *                         type: integer
+                 *                       color:
+                 *                         type: string
+                 *                       sku:
+                 *                         type: string
+                 *                       conditionDescription:
+                 *                         type: string
+                 *                       defectNotes:
+                 *                         type: string
+                 *                       includedItems:
+                 *                         type: string
+                 *                       weight:
+                 *                         type: integer
+                 *                         description: Weight in grams
+                 *                       dimensionWidth:
+                 *                         type: integer
+                 *                         description: Width in cm
+                 *                       dimensionHigh:
+                 *                         type: integer
+                 *                         description: Height in cm
+                 *                       dimensionLong:
+                 *                         type: integer
+                 *                         description: Length in cm
+                 *                       sizes:
+                 *                         type: array
+                 *                         items:
+                 *                           type: object
+                 *                           properties:
+                 *                             value:
+                 *                               type: string
+                 *                             sizeUnit:
+                 *                               type: object
+                 *                               properties:
+                 *                                 name:
+                 *                                   type: string
+                 *                 tags:
+                 *                   type: array
+                 *                   items:
+                 *                     type: string
+                 *                 images:
+                 *                   type: array
+                 *                   items:
+                 *                     type: object
+                 *                     properties:
+                 *                       id:
+                 *                         type: string
+                 *                       imageUrl:
+                 *                         type: string
+                 *                       isPrimary:
+                 *                         type: boolean
                  *       404:
                  *         description: Item not found
                  *       401:
@@ -93,6 +195,17 @@ class ItemV2Router extends BaseRouter {
                  *               sellType:
                  *                 type: string
                  *                 enum: [NORMAL, AUCTION, SATISFY, RFQ]
+                 *               shippingDuration:
+                 *                 type: integer
+                 *                 minimum: 1
+                 *                 maximum: 30
+                 *                 description: Shipping duration in days (1-30)
+                 *               tags:
+                 *                 type: array
+                 *                 maxItems: 3
+                 *                 items:
+                 *                   type: string
+                 *                 description: Product tags (max 3)
                  *               itemVariants:
                  *                 type: array
                  *                 items:
@@ -108,6 +221,50 @@ class ItemV2Router extends BaseRouter {
                  *                     stockQuantity:
                  *                       type: number
                  *                       default: 0
+                 *                     sku:
+                 *                       type: string
+                 *                       description: SKU code (auto-generated if not provided)
+                 *                     color:
+                 *                       type: string
+                 *                       description: Color or pattern
+                 *                     conditionDescription:
+                 *                       type: string
+                 *                       enum: [NEW_GOOD, USED_GOOD, USED_FAIR, USED_BAD, DAMAGED]
+                 *                       description: Product condition
+                 *                     defectNotes:
+                 *                       type: string
+                 *                       description: Notes about defects or imperfections
+                 *                     includedItems:
+                 *                       type: string
+                 *                       description: Included accessories (e.g., "charger, box")
+                 *                     weight:
+                 *                       type: integer
+                 *                       description: Weight in grams
+                 *                       example: 500
+                 *                     dimensionWidth:
+                 *                       type: integer
+                 *                       description: Width in centimeters
+                 *                       example: 20
+                 *                     dimensionHigh:
+                 *                       type: integer
+                 *                       description: Height in centimeters
+                 *                       example: 30
+                 *                     dimensionLong:
+                 *                       type: integer
+                 *                       description: Length in centimeters
+                 *                       example: 40
+                 *                     sizes:
+                 *                       type: array
+                 *                       items:
+                 *                         type: object
+                 *                         properties:
+                 *                           sizeUnitId:
+                 *                             type: string
+                 *                             format: uuid
+                 *                           value:
+                 *                             type: string
+                 *                           sortOrder:
+                 *                             type: integer
                  *     responses:
                  *       201:
                  *         description: Item created successfully
@@ -145,8 +302,12 @@ class ItemV2Router extends BaseRouter {
                  *           schema:
                  *             type: object
                  *             properties:
-                 *               code:
+                 *               brandId:
                  *                 type: string
+                 *                 format: uuid
+                 *               categoryId:
+                 *                 type: string
+                 *                 format: uuid
                  *               nameTh:
                  *                 type: string
                  *               nameEn:
@@ -155,6 +316,67 @@ class ItemV2Router extends BaseRouter {
                  *                 type: string
                  *               descriptionEn:
                  *                 type: string
+                 *               itemType:
+                 *                 type: string
+                 *                 enum: [NEW, USED]
+                 *               sellType:
+                 *                 type: string
+                 *                 enum: [NORMAL, AUCTION, SATISFY, RFQ]
+                 *               shippingDuration:
+                 *                 type: integer
+                 *                 minimum: 1
+                 *                 maximum: 30
+                 *               tags:
+                 *                 type: array
+                 *                 maxItems: 3
+                 *                 items:
+                 *                   type: string
+                 *               itemVariants:
+                 *                 type: array
+                 *                 items:
+                 *                   type: object
+                 *                   properties:
+                 *                     variantName:
+                 *                       type: string
+                 *                     price:
+                 *                       type: number
+                 *                     stockQuantity:
+                 *                       type: number
+                 *                     sku:
+                 *                       type: string
+                 *                     color:
+                 *                       type: string
+                 *                     conditionDescription:
+                 *                       type: string
+                 *                       enum: [NEW_GOOD, USED_GOOD, USED_FAIR, USED_BAD, DAMAGED]
+                 *                     defectNotes:
+                 *                       type: string
+                 *                     includedItems:
+                 *                       type: string
+                 *                     weight:
+                 *                       type: integer
+                 *                       description: Weight in grams
+                 *                     dimensionWidth:
+                 *                       type: integer
+                 *                       description: Width in cm
+                 *                     dimensionHigh:
+                 *                       type: integer
+                 *                       description: Height in cm
+                 *                     dimensionLong:
+                 *                       type: integer
+                 *                       description: Length in cm
+                 *                     sizes:
+                 *                       type: array
+                 *                       items:
+                 *                         type: object
+                 *                         properties:
+                 *                           sizeUnitId:
+                 *                             type: string
+                 *                             format: uuid
+                 *                           value:
+                 *                             type: string
+                 *                           sortOrder:
+                 *                             type: integer
                  *     responses:
                  *       200:
                  *         description: Item updated successfully

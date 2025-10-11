@@ -510,4 +510,39 @@ export class BuyerPaymentRepository implements IBuyerPaymentRepository {
       }
     }
   }
+
+  /**
+   * คืนเงินจาก charge
+   */
+  async refundCharge(chargeId: string, amount?: number): Promise<import("@business/interfaces/buyer-payment.interfaces").RefundResponse> {
+    try {
+      if (!chargeId) {
+        throw new Error('chargeId is required');
+      }
+
+      const refundData: any = {};
+      if (amount) {
+        refundData.amount = amount; // Amount in smallest currency unit (satang)
+      }
+
+      // Use charges.createRefund to create a refund
+      const refund = await this.omise.charges.createRefund(chargeId, refundData);
+
+      return {
+        id: refund.id,
+        object: refund.object,
+        amount: refund.amount,
+        currency: refund.currency,
+        charge: refund.charge,
+        transaction: refund.transaction,
+        created: refund.created_at,
+      };
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Failed to refund charge: ${error.message}`);
+      } else {
+        throw new Error(`Failed to refund charge: ${JSON.stringify(error)}`);
+      }
+    }
+  }
 }

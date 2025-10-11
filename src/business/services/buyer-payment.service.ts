@@ -58,4 +58,8 @@ export class BuyerPaymentService implements IBuyerPaymentService {
     async getCapability(): Promise<CapabilityResponse> {
         return await this.buyerPaymentRepository.getCapability();
     }
+
+    async refundCharge(chargeId: string, amount?: number): Promise<import("@business/interfaces/buyer-payment.interfaces").RefundResponse> {
+        return await this.buyerPaymentRepository.refundCharge(chargeId, amount);
+    }
 }

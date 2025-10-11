@@ -1,6 +1,6 @@
 import { injectable } from "inversify";
 import { prisma } from "../database/db";
-import { ImageType, Status } from "../../../generated/prisma";
+import { ImageType, Status, AuctionParticipantStatus, SellType } from "../../../generated/prisma";
 import {
   IItemRepository,
   CreateItemData,
@@ -8,10 +8,9 @@ import {
   ItemDetails,
   UpdateItemVariantRequest,
   UpdateVariantAuctionItemRequest,
-  ItemVariant,
   ItemVariantUpdate,
 } from "../../business/interfaces/item.interfaces";
-import { IFileService, UploadResult } from "@business/interfaces/file.interfaces";
+import { IFileService } from "@business/interfaces/file.interfaces";
 import { inject } from "inversify";
 import { TYPES } from "../../shared/types/service.types";
 
@@ -20,9 +19,7 @@ export class ItemRepository implements IItemRepository {
   /**
    * Create a new item with generated code and variants
    */
-  constructor(
-    @inject(TYPES.FileService) private fileService: IFileService,
-  ) { }
+  constructor(@inject(TYPES.FileService) private fileService: IFileService) {}
   async create(data: CreateItemData): Promise<ItemDetails> {
     const itemCode = `ITEM-${Math.random()
       .toString(36)
@@ -49,9 +46,6 @@ export class ItemRepository implements IItemRepository {
         },
       });
 
-
-
-
       // 2. Create item variants if provided
       if (data.itemVariants && data.itemVariants.length > 0) {
         for (const variantData of data.itemVariants) {
@@ -70,20 +64,23 @@ export class ItemRepository implements IItemRepository {
               includedItems: variantData.includedItems,
               price: variantData.price,
               stock: variantData.stockQuantity,
+              weight: variantData.weight,
+              dimensionWidth: variantData.dimensionWidth,
+              dimensionHigh: variantData.dimensionHigh,
+              dimensionLong: variantData.dimensionLong,
             },
           });
 
-
-
           // Only upload when images are provided; support single file or array
           if (variantData.images) {
-
             const imagesArray = Array.isArray(variantData.images)
               ? variantData.images
               : [variantData.images];
 
             if (imagesArray.length > 0) {
-              const uploadedImages = await this.fileService.uploadItemImages(imagesArray);
+              const uploadedImages = await this.fileService.uploadItemImages(
+                imagesArray
+              );
               // Persist uploaded images linked to the created variant
               const images = await tx.image.createMany({
                 data: uploadedImages.map((image, index) => ({
@@ -101,7 +98,6 @@ export class ItemRepository implements IItemRepository {
               });
             }
           }
-
 
           // 3. Create variant sizes if provided
           if (variantData.sizes && variantData.sizes.length > 0) {
@@ -175,6 +171,10 @@ export class ItemRepository implements IItemRepository {
             conditionDescription: true,
             defectNotes: true,
             includedItems: true,
+            weight: true,
+            dimensionWidth: true,
+            dimensionHigh: true,
+            dimensionLong: true,
             sizes: {
               select: {
                 value: true,
@@ -209,7 +209,12 @@ export class ItemRepository implements IItemRepository {
                 bids: true,
               },
             },
-            AuctionParticipant: true,
+            AuctionParticipant: {
+              where:
+                userId && userId !== ""
+                  ? { userId: userId }
+                  : { id: { in: [] } },
+            },
           },
         },
       },
@@ -232,7 +237,9 @@ export class ItemRepository implements IItemRepository {
     });
 
     // Build variants with images (ImageType.VARIANT)
-    const validVariants = await this.getVariantsWithImages(item.itemVariants as any[]);
+    const validVariants = await this.getVariantsWithImages(
+      item.itemVariants as any[]
+    );
 
     const hasUserBid = userId && item.auction && item.auction.bids.length > 0;
     const { ...auctionWithoutBids } = item.auction || {};
@@ -241,10 +248,11 @@ export class ItemRepository implements IItemRepository {
       ...item,
       auction: item.auction
         ? {
-          ...auctionWithoutBids,
-          hasUserBid,
-        }
-        : null,
+            ...auctionWithoutBids,
+            hasUserBid,
+            AuctionParticipant: item.auction.AuctionParticipant || [],
+          }
+        : { AuctionParticipant: [] },
       imageList: images || [],
       tags,
       itemVariants: validVariants,
@@ -270,6 +278,8 @@ export class ItemRepository implements IItemRepository {
       take,
     } = filters;
     const skip = (page - 1) * take;
+
+    console.log("xxxx" + userId);
 
     // Build where clause
     const where: any = {
@@ -340,6 +350,10 @@ export class ItemRepository implements IItemRepository {
               conditionDescription: true,
               defectNotes: true,
               includedItems: true,
+              weight: true,
+              dimensionWidth: true,
+              dimensionHigh: true,
+              dimensionLong: true,
               sizes: {
                 select: {
                   value: true,
@@ -374,14 +388,18 @@ export class ItemRepository implements IItemRepository {
                   bids: true,
                 },
               },
-              AuctionParticipant: true,
+              AuctionParticipant: {
+                where:
+                  userId && userId !== ""
+                    ? { userId: userId }
+                    : { id: { in: [] } },
+              },
             },
           },
         },
       }),
       prisma.item.count({ where }),
     ]);
-
 
     const itemIds = items.map((item) => item.id);
     const images = await prisma.image.findMany({
@@ -409,21 +427,24 @@ export class ItemRepository implements IItemRepository {
 
     const itemsWithImages = await Promise.all(
       items.map(async (item) => {
-        const hasUserBid = userId && item.auction && item.auction.bids.length > 0;
+        const hasUserBid =
+          userId && item.auction && item.auction.bids.length > 0;
         const { ...auctionWithoutBids } = item.auction || {};
         const tags = await this.fetchItemTags(item.id);
 
-
-        const validVariants = await this.getVariantsWithImages(item.itemVariants);
+        const validVariants = await this.getVariantsWithImages(
+          item.itemVariants
+        );
 
         return {
           ...item,
           auction: item.auction
             ? {
-              ...auctionWithoutBids,
-              hasUserBid,
-            }
-            : null,
+                ...auctionWithoutBids,
+                hasUserBid,
+                AuctionParticipant: item.auction.AuctionParticipant || [],
+              }
+            : { AuctionParticipant: [] },
           imageList: imagesByItemId[item.id] || [],
           tags,
           itemVariants: validVariants,
@@ -433,8 +454,6 @@ export class ItemRepository implements IItemRepository {
 
     return { items: itemsWithImages, total };
   }
-
-
 
   /**
    * Update item by ID with variants
@@ -504,6 +523,10 @@ export class ItemRepository implements IItemRepository {
                 includedItems: variantData.includedItems,
                 price: variantData.price,
                 stock: variantData.stockQuantity,
+                weight: variantData.weight,
+                dimensionWidth: variantData.dimensionWidth,
+                dimensionHigh: variantData.dimensionHigh,
+                dimensionLong: variantData.dimensionLong,
               },
             });
           } else {
@@ -526,6 +549,10 @@ export class ItemRepository implements IItemRepository {
                 includedItems: variantData.includedItems,
                 price: variantData.price,
                 stock: variantData.stockQuantity,
+                weight: variantData.weight,
+                dimensionWidth: variantData.dimensionWidth,
+                dimensionHigh: variantData.dimensionHigh,
+                dimensionLong: variantData.dimensionLong,
               },
             });
           }
@@ -609,8 +636,6 @@ export class ItemRepository implements IItemRepository {
   ): Promise<ItemVariantUpdate> {
     // Find the variant with its associated item to validate ownership
 
-
-
     const updateItem = await prisma.item.update({
       where: { id: itemId },
       data: {
@@ -621,7 +646,10 @@ export class ItemRepository implements IItemRepository {
     });
 
     if (!data.itemVariants) {
-      return this.mapToItemVariant(null, { nameTh: updateItem.nameTh, nameEn: updateItem.nameEn });
+      return this.mapToItemVariant(null, {
+        nameTh: updateItem.nameTh,
+        nameEn: updateItem.nameEn,
+      });
     }
 
     // Update each provided variant; track the last updated one to return
@@ -636,12 +664,17 @@ export class ItemRepository implements IItemRepository {
       });
     }
 
-
     // Map to ItemVariantUpdate interface using the original variant data for seller info
-    return this.mapToItemVariant(lastUpdatedVariant, { nameTh: updateItem.nameTh, nameEn: updateItem.nameEn });
+    return this.mapToItemVariant(lastUpdatedVariant, {
+      nameTh: updateItem.nameTh,
+      nameEn: updateItem.nameEn,
+    });
   }
 
-  private mapToItemVariant(updatedVariant: any, itemNames?: { nameTh?: string; nameEn?: string; }): ItemVariantUpdate {
+  private mapToItemVariant(
+    updatedVariant: any,
+    itemNames?: { nameTh?: string; nameEn?: string }
+  ): ItemVariantUpdate {
     return {
       itemId: updatedVariant.itemId,
       userId: updatedVariant.sellerId,
@@ -682,7 +715,9 @@ export class ItemRepository implements IItemRepository {
         await prisma.itemVariant.update({
           where: { id: v.variantId, itemId },
           data: {
-            ...(v.stockQuantity !== undefined ? { stock: v.stockQuantity } : {}),
+            ...(v.stockQuantity !== undefined
+              ? { stock: v.stockQuantity }
+              : {}),
           },
         });
       }
@@ -691,28 +726,33 @@ export class ItemRepository implements IItemRepository {
     // Update auction fields if provided (ensure the auction belongs to the item)
     if (data.itemAuction && data.itemAuction.length > 0) {
       for (const a of data.itemAuction) {
-
         let findAuction = await prisma.auction.findFirst({
           where: { itemId, id: a.auctionId },
         });
 
         if (!findAuction) {
-          throw new Error(`Auction not found for item or does not belong to item (auctionId=${a.auctionId}, itemId=${itemId})`);
+          throw new Error(
+            `Auction not found for item or does not belong to item (auctionId=${a.auctionId}, itemId=${itemId})`
+          );
         }
-
 
         const result = await prisma.auction.updateMany({
           where: { id: a.auctionId, itemId },
           data: {
             ...(a.startPrice !== undefined ? { startPrice: a.startPrice } : {}),
-            ...(a.buyNowPrice !== undefined ? { buyNowPrice: a.buyNowPrice } : {}),
-            ...(a.startAt !== undefined ? { startAt: new Date(a.startAt) } : {}),
+            ...(a.buyNowPrice !== undefined
+              ? { buyNowPrice: a.buyNowPrice }
+              : {}),
+            ...(a.startAt !== undefined
+              ? { startAt: new Date(a.startAt) }
+              : {}),
             ...(a.endAt !== undefined ? { endAt: new Date(a.endAt) } : {}),
-
           },
         });
         if (result.count === 0) {
-          throw new Error(`Auction not found for item or does not belong to item (auctionId=${a.auctionId}, itemId=${itemId})`);
+          throw new Error(
+            `Auction not found for item or does not belong to item (auctionId=${a.auctionId}, itemId=${itemId})`
+          );
         }
       }
     }
@@ -728,28 +768,88 @@ export class ItemRepository implements IItemRepository {
     };
   }
 
-
-
   /**
    * Delete item (soft delete by updating status)
+   * - INACTIVE: Clear Bid, Satisfy tables and update AuctionParticipant.refundedAt
    */
   async delete(id: string, userId: string, status?: string): Promise<void> {
-
     const statusMap: Record<"DELETED" | "INACTIVE" | "ACTIVE", Status> = {
       DELETED: Status.DELETED,
       INACTIVE: Status.INACTIVE,
       ACTIVE: Status.ACTIVE,
     };
     // Validate and narrow status before indexing the map to satisfy TS
-    if (!status || !(status === "DELETED" || status === "INACTIVE" || status === "ACTIVE")) {
-      throw new Error(`Invalid status '${status}'. Allowed: DELETED, INACTIVE, ACTIVE`);
+    if (
+      !status ||
+      !(status === "DELETED" || status === "INACTIVE" || status === "ACTIVE")
+    ) {
+      throw new Error(
+        `Invalid status '${status}'. Allowed: DELETED, INACTIVE, ACTIVE`
+      );
     }
     const statusUpdate = statusMap[status];
 
-    await prisma.item.update({
-      where: { id },
-      data: { status: statusUpdate },
-    });
+    // ถ้าเป็น INACTIVE ให้ทำการ clear ข้อมูลที่เกี่ยวข้อง
+    if (status === "INACTIVE") {
+      await prisma.$transaction(async (tx) => {
+        // 1. ดึงข้อมูล item เพื่อเช็ค sellType
+        const item = await tx.item.findUnique({
+          where: { id },
+          select: { 
+            id: true, 
+            sellType: true,
+            auction: { select: { id: true } }
+          },
+        });
+
+        if (!item) {
+          throw new Error("Item not found");
+        }
+
+        // 2. ถ้าเป็นสินค้าประมูล (sellType = AUCTION)
+        if (item.sellType === SellType.AUCTION && item.auction) {
+          const auctionId = item.auction.id;
+          const now = new Date();
+
+          // Clear ตาราง Bid
+          await tx.bid.deleteMany({
+            where: { auctionId },
+          });
+
+          // Update AuctionParticipant.refundedAt สำหรับผู้ที่จ่ายมัดจำแล้ว
+          await tx.auctionParticipant.updateMany({
+            where: {
+              auctionId,
+              status: AuctionParticipantStatus.PAID,
+              refundedAt: null,
+            },
+            data: {
+              refundedAt: now,
+              status: AuctionParticipantStatus.REFUNDED,
+            },
+          });
+        }
+
+        // 3. ถ้าเป็นสินค้าต่อรอง (sellType = SATISFY) - Clear ตาราง Satisfy
+        if (item.sellType === SellType.SATISFY) {
+          await tx.satisfy.deleteMany({
+            where: { itemId: id },
+          });
+        }
+
+        // 4. Update สถานะ item เป็น INACTIVE
+        await tx.item.update({
+          where: { id },
+          data: { status: statusUpdate },
+        });
+      });
+    } else {
+      // ถ้าไม่ใช่ INACTIVE ให้ update สถานะตามปกติ
+      await prisma.item.update({
+        where: { id },
+        data: { status: statusUpdate },
+      });
+    }
   }
 
   /**
@@ -827,9 +927,9 @@ export class ItemRepository implements IItemRepository {
         email: item.seller.email,
         profile: item.seller.profile
           ? {
-            firstName: item.seller.profile.firstName,
-            lastName: item.seller.profile.lastName,
-          }
+              firstName: item.seller.profile.firstName,
+              lastName: item.seller.profile.lastName,
+            }
           : undefined,
       },
       category: {
@@ -855,6 +955,10 @@ export class ItemRepository implements IItemRepository {
           conditionDescription: variant.conditionDescription,
           defectNotes: variant.defectNotes,
           includedItems: variant.includedItems,
+          weight: variant.weight,
+          dimensionWidth: variant.dimensionWidth,
+          dimensionHigh: variant.dimensionHigh,
+          dimensionLong: variant.dimensionLong,
           sizes:
             variant.sizes?.map((size: any) => ({
               id: size.id,
@@ -881,10 +985,11 @@ export class ItemRepository implements IItemRepository {
     };
   }
 
-
   async getVariantsWithImages(itemVariants: any[]) {
     // Collect variant ids
-    const variantIds = (itemVariants || []).map((v: any) => v.id).filter(Boolean);
+    const variantIds = (itemVariants || [])
+      .map((v: any) => v.id)
+      .filter(Boolean);
     if (variantIds.length === 0) return [];
 
     // Fetch variant data in batch
@@ -892,22 +997,21 @@ export class ItemRepository implements IItemRepository {
       where: { id: { in: variantIds } },
       include: {
         sizes: {
-            select: {
+          select: {
+            id: true,
+            value: true,
+            variantId: true,
+            sizeUnitId: true,
+            sortOrder: true,
+            sizeUnit: {
+              select: {
                 id: true,
-                value: true,
-                variantId: true,
-                sizeUnitId: true,
-                sortOrder: true,
-                sizeUnit: {
-                    select: {
-                        id: true,
-                        name: true
-                    }
-                },
+                name: true,
+              },
             },
-
+          },
         },
-    }
+      },
     });
 
     // Fetch variant images (ImageType.VARIANT) in batch
@@ -925,12 +1029,15 @@ export class ItemRepository implements IItemRepository {
       orderBy: { isPrimary: "desc" },
     });
 
-    const imagesByVariantId = variantImages.reduce((acc: Record<string, any[]>, img) => {
-      const key = img.targetId as unknown as string;
-      if (!acc[key]) acc[key] = [];
-      acc[key].push(img);
-      return acc;
-    }, {} as Record<string, any[]>);
+    const imagesByVariantId = variantImages.reduce(
+      (acc: Record<string, any[]>, img) => {
+        const key = img.targetId as unknown as string;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(img);
+        return acc;
+      },
+      {} as Record<string, any[]>
+    );
 
     // Merge
     return variantsData.map((v) => ({

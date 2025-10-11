@@ -50,16 +50,16 @@ export class ChatService implements IChatService {
         return this.categoryRepository.sendReply(replyData);
     }
 
-    async getConversations(userId: string): Promise<ChatConversation[]> {
-        Logger.info("Fetching conversations for user:", { userId });
+    async getConversations(userId: string, keyword?: string): Promise<ChatConversation[]> {
+        Logger.info("Fetching conversations for user:", { userId, keyword });
 
-        return this.categoryRepository.getConversations(userId);
+        return this.categoryRepository.getConversations(userId, keyword);
     }
 
-    async getConversationsForShop(shopId: string): Promise<ChatConversation[]> {
-        Logger.info("Fetching conversations for shop:", { shopId });
+    async getConversationsForShop(shopId: string, keyword?: string): Promise<ChatConversation[]> {
+        Logger.info("Fetching conversations for shop:", { shopId, keyword });
 
-        return this.categoryRepository.getConversationsForShop(shopId);
+        return this.categoryRepository.getConversationsForShop(shopId, keyword);
     }
 
     async getMessages(conversationId: string): Promise<ChatMessageWithReply[]> {

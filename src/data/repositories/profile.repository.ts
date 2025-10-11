@@ -20,7 +20,10 @@ export class ProfileRepository implements IProfileRepository {
     async findUserById(id: string): Promise<UserData | null> {
         const user = await this.prisma.user.findUnique({
             where: { id },
-            include: { profile: true },
+            include: {
+                profile: true,
+                Shop: { select: { id: true } },
+            },
         });
 
         return user ? this.mapToUserData(user) : null;
@@ -125,6 +128,7 @@ export class ProfileRepository implements IProfileRepository {
             id: user.id,
             email: user.email,
             phone: user.phone,
+            shopId: Array.isArray(user.Shop) && user.Shop.length > 0 ? user.Shop[0].id : undefined,
             createdAt: user.createdAt,
             updatedAt: user.updatedAt,
             profile: user.profile ? this.mapToProfileData(user.profile) : undefined,

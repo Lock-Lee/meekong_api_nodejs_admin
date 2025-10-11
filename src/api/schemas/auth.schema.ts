@@ -42,13 +42,14 @@ const loginByPhone = z.object({
   phone: z.string().min(1, "Phone number is required"),
   pin: z.string().min(4, "PIN must be 4 digits").max(4, "PIN must be 4 digits"),
   token: z.string().min(1, "Token is required"),
-  firebaseToken: z.string().optional(),
+  firebaseToken: z.string().nullable().optional(),
   deviceInfo: z
     .object({
       id: z.string().min(1, "Device ID is required"),
       name: z.string().min(1, "Device name is required"),
       type: z.string().min(1, "Device type is required"),
     })
+    .nullable()
     .optional(),
 });
 
@@ -68,10 +69,40 @@ const register = z
     message: "Passwords do not match",
   });
 
+const socialAuth = z.object({
+  accessToken: z.string().min(1, "Access token is required"),
+  firebaseToken: z.string().nullable().optional(),
+  deviceInfo: z
+    .object({
+      id: z.string().optional(),
+      name: z.string().optional(),
+      type: z.string().optional(),
+    })
+    .nullable()
+    .optional(),
+});
+
+const forgotPassword = z.object({
+  email: z.string().email("Invalid email format"),
+});
+
+const resetPassword = z.object({
+  token: z.string().min(1, "Token is required"),
+  pin: z.string().min(6, "PIN must be 6 digits").max(6, "PIN must be 6 digits"),
+  newPassword: passwordSchema,
+  confirmPassword: z.string().min(1, "Confirm password is required"),
+}).refine((data) => data.newPassword === data.confirmPassword, {
+  path: ["confirmPassword"],
+  message: "Passwords do not match",
+});
+
 const authSchema = {
   login,
   register,
   loginByPhone,
+  socialAuth,
+  forgotPassword,
+  resetPassword,
 };
 
 export default authSchema;

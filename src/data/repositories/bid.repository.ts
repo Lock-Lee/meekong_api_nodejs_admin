@@ -42,6 +42,21 @@ export class BidRepository implements IBidRepository {
      * Find bids by auction ID, ordered by amount (highest first)
      */
     async findBidsByAuctionOrderedByAmount(auctionId: string): Promise<BidData[]> {
+        // ดึงข้อมูล auction เพื่อหา winnerId
+        const auction = await this.prisma.auction.findUnique({
+            where: { id: auctionId },
+            select: {
+                id: true,
+                winnerId: true,
+                itemId: true,
+            },
+        });
+
+        if (!auction) {
+            return [];
+        }
+
+        // ดึง bids
         const bids = await this.prisma.bid.findMany({
             where: { auctionId },
             orderBy: { amount: "desc" },
@@ -61,7 +76,98 @@ export class BidRepository implements IBidRepository {
             },
         });
 
-        return bids.map((bid: any) => this.mapToBidData(bid));
+        // ถ้าไม่มี winner ให้ return bids ปกติ
+        if (!auction.winnerId) {
+            return bids.map((bid: any) => this.mapToBidData(bid));
+        }
+
+        // หา order ของผู้ชนะประมูล
+        const winnerOrder = await this.prisma.order.findFirst({
+            where: {
+                buyerId: auction.winnerId,
+                items: {
+                    some: {
+                        itemId: auction.itemId,
+                    },
+                },
+            },
+            select: {
+                id: true,
+                status: true,
+                createdAt: true,
+            },
+            orderBy: {
+                createdAt: 'desc',
+            },
+        });
+
+        // คำนวณสถานะการจ่ายเงิน
+        let statusAuction: 'WAITING_TO_PAID' | 'PAID' | 'EXPIRED_PAID' | 'CANCELED_PAID' | undefined;
+        let paymentExpireAt: Date | null = null;
+
+        if (winnerOrder) {
+            const now = new Date();
+            const orderCreatedAt = winnerOrder.createdAt;
+            const hoursSinceCreated = (now.getTime() - orderCreatedAt.getTime()) / (1000 * 60 * 60);
+
+            switch (winnerOrder.status) {
+                case 'PENDING':
+                    // คำนวณเวลาหมดอายุ (12 ชั่วโมงจากเวลาสร้าง order)
+                    paymentExpireAt = new Date(orderCreatedAt.getTime() + 12 * 60 * 60 * 1000);
+                    
+                    if (hoursSinceCreated > 12) {
+                        statusAuction = 'EXPIRED_PAID';
+                    } else {
+                        statusAuction = 'WAITING_TO_PAID';
+                    }
+                    break;
+
+                case 'PAID':
+                case 'SHIPPED':
+                case 'COMPLETED':
+                    statusAuction = 'PAID';
+                    break;
+
+                case 'CANCELED':
+                    statusAuction = 'CANCELED_PAID';
+                    break;
+            }
+        }
+
+        // Map bids และแสดง status เฉพาะผู้ชนะ
+        return bids.map((bid: any) => {
+            const isWinner = bid.userId === auction.winnerId;
+            return this.mapToBidData(
+                bid,
+                isWinner ? statusAuction : undefined,
+                isWinner ? paymentExpireAt : null
+            );
+        });
+    }
+
+    /**
+     * Find a bid by ID
+     */
+    async findBidById(bidId: string): Promise<BidData | null> {
+        const bid = await this.prisma.bid.findUnique({
+            where: { id: bidId },
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        profile: {
+                            select: {
+                                firstName: true,
+                                lastName: true,
+                                avatarUrl: true,
+                            },
+                        },
+                    },
+                },
+            },
+        });
+
+        return bid ? this.mapToBidData(bid) : null;
     }
 
     /**
@@ -73,6 +179,7 @@ export class BidRepository implements IBidRepository {
                 auctionId: data.auctionId,
                 userId: data.userId,
                 amount: data.amount,
+                chargeId: data.chargeId,
             },
             include: {
                 user: {
@@ -91,6 +198,15 @@ export class BidRepository implements IBidRepository {
         });
 
         return this.mapToBidData(bid);
+    }
+
+    /**
+     * Delete a bid
+     */
+    async deleteBid(bidId: string): Promise<void> {
+        await this.prisma.bid.delete({
+            where: { id: bidId },
+        });
     }
 
     /**
@@ -134,13 +250,18 @@ export class BidRepository implements IBidRepository {
     }
 
     // Mappers
-    private mapToBidData(bid: any): BidData {
+    private mapToBidData(
+        bid: any,
+        statusAuction?: 'WAITING_TO_PAID' | 'PAID' | 'EXPIRED_PAID' | 'CANCELED_PAID',
+        paymentExpireAt?: Date | null
+    ): BidData {
         return {
             id: bid.id,
             auctionId: bid.auctionId,
             userId: bid.userId,
             amount: bid.amount,
             bidAt: bid.bidAt,
+            chargeId: bid.chargeId,
             user: bid.user ? {
                 id: bid.user.id,
                 profile: bid.user.profile ? {
@@ -149,6 +270,8 @@ export class BidRepository implements IBidRepository {
                     avatarUrl: bid.user.profile.avatarUrl,
                 } : undefined,
             } : undefined,
+            statusAuction,
+            paymentExpireAt: paymentExpireAt ?? null,
         };
     }
 

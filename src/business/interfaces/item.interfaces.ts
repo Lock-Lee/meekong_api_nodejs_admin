@@ -53,6 +53,10 @@ export interface ItemVariant {
   conditionDescription?: ProductCondition;
   defectNotes?: string;
   includedItems?: string;
+  weight?: number;
+  dimensionWidth?: number;
+  dimensionHigh?: number;
+  dimensionLong?: number;
   sizes?: ItemVariantSize[];
 }
 
@@ -218,6 +222,10 @@ export interface CreateItemVariant {
   conditionDescription?: ProductCondition;
   defectNotes?: string;
   includedItems?: string;
+  weight?: number;
+  dimensionWidth?: number;
+  dimensionHigh?: number;
+  dimensionLong?: number;
   // Optional images for this variant
   sizes?: CreateItemVariantSize[];
   images?: UploadedFile[];

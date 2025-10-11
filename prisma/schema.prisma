@@ -190,6 +190,21 @@ model PhoneOtp {
   @@index([phone, otp])
 }
 
+model OTPEmail {
+  id        String   @id @default(uuid())
+  userId    String
+  email     String
+  token     String   @unique
+  pin       String
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([token])
+  @@index([email])
+  @@index([userId])
+}
+
 // RefreshSession model for managing user sessions, especially for mobile apps
 model RefreshSession {
   id     String @id @default(uuid())
@@ -527,6 +542,12 @@ model ItemVariant {
   includedItems        String? // optional อุปกรณ์เพิ่มเติม/ของแถม เช่น "สายชาร์จ, กล่อง"
 
   price Decimal @default(0.00) @db.Decimal(10, 2)
+
+  // Shipping dimensions and weight
+  weight         Int? // น้ำหนัก (กรัม)
+  dimensionWidth Int? // ความกว้าง (เซนติเมตร)
+  dimensionHigh  Int? // ความสูง (เซนติเมตร)
+  dimensionLong  Int? // ความยาว (เซนติเมตร)
 
   stock         Int
   sizes         ItemVariantSize[]
@@ -1383,7 +1404,7 @@ model ChatMessage {
 
   message     String
   messageType ChatMessageType @default(TEXT) // TEXT, IMAGE, FILE, PRODUCT, ORDER, REPLY
-  attachments String? // JSON data: URLs สำหรับ IMAGE/FILE, itemId สำหรับ PRODUCT, orderId สำหรับ ORDER
+  attachments Json? // JSON data: URLs สำหรับ IMAGE/FILE, itemId สำหรับ PRODUCT, orderId สำหรับ ORDER
 
   // Reply functionality
   replyToId String?       @map("reply_to_id") // ID ของข้อความที่ตอบกลับ
@@ -1506,6 +1527,7 @@ enum OfferStatus {
   ACCEPTED
   CANCELED
   EXPIRED
+  EXPIRED_PAID
   NONE
   ADJUST
   REJECT
@@ -2046,6 +2068,7 @@ enum ChatType {
   USER_SHOP // แชทระหว่าง User กับ Shop
   USER_ADMIN // แชทระหว่าง User กับ Admin
   SHOP_ADMIN // แชทระหว่าง Shop กับ Admin
+  SATISFY_CHAT // แชทระหว่างผู้ซื้อและผู้ขายในระบบ Satisfy
 }
 
 enum ChatStatus {

@@ -8,6 +8,7 @@ import {
     CreateUserData,
     CreateUserDeviceData,
     UpdateUserDeviceFirebaseTokenData,
+    CreateSocialUserData,
 } from "../../business/interfaces/auth.interfaces";
 
 @injectable()
@@ -157,5 +158,79 @@ export class UserRepository implements IUserRepository {
                 lastName: user.profile.lastName,
             } : undefined,
         };
+    }
+
+    async findByProviderId(provider: AuthProvider, providerId: string): Promise<any> {
+        return this.prisma.userAuth.findFirst({
+            where: {
+                provider,
+                providerId,
+            },
+            include: {
+                user: {
+                    include: { profile: true }
+                },
+            },
+        });
+    }
+
+    async createSocialUser(userData: CreateSocialUserData): Promise<UserAuthDetails> {
+        const user = await this.prisma.user.create({
+            data: {
+                id: uuidv7(),
+                email: userData.email,
+                phone: userData.phone,
+                roles: {
+                    set: userData.roles,
+                },
+                profile: {
+                    create: {
+                        firstName: userData.profile.firstName,
+                        lastName: userData.profile.lastName,
+                        avatarUrl: userData.profile.avatarUrl,
+                    },
+                },
+                authentications: {
+                    create: {
+                        provider: userData.authentication.provider,
+                        providerId: userData.authentication.providerId,
+                        accessToken: userData.authentication.accessToken,
+                        refreshToken: userData.authentication.refreshToken,
+                    },
+                },
+            },
+            include: {
+                profile: true
+            },
+        });
+
+        return {
+            id: user.id,
+            email: user.email,
+            profile: user.profile ? {
+                firstName: user.profile.firstName,
+                lastName: user.profile.lastName,
+            } : undefined,
+        };
+    }
+
+    async updateEmail(userId: string, email: string): Promise<void> {
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: { email },
+        });
+    }
+
+    async updatePassword(userId: string, hashedPassword: string): Promise<void> {
+        // Update password in UserAuth table for PASSWORD provider
+        await this.prisma.userAuth.updateMany({
+            where: {
+                userId: userId,
+                provider: AuthProvider.PASSWORD,
+            },
+            data: {
+                passwordHash: hashedPassword,
+            },
+        });
     }
 }
